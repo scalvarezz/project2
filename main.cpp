@@ -22,30 +22,30 @@ const float CARD_HEIGHT = 120.0f;
 class Card {
 public:
     enum Suit {
-        SPADES = 0,     // Спутники - наука - пики
-        HEARTS,         // Ракеты - армия - черви
-        DIAMONDS,       // Звёзды - пропаганда - бубны
-        CLUBS,          // Астероиды - разрушение - трефы
-        JOKER           // Коммунизм - джокер - для обозначения его цвета, но тут ещё надо подумать, как это сделать не так по-уебански
+        SPADES = 0,     // РЎРїСѓС‚РЅРёРєРё - РЅР°СѓРєР° - РїРёРєРё
+        HEARTS,         // Р Р°РєРµС‚С‹ - Р°СЂРјРёСЏ - С‡РµСЂРІРё
+        DIAMONDS,       // Р—РІС‘Р·РґС‹ - РїСЂРѕРїР°РіР°РЅРґР° - Р±СѓР±РЅС‹
+        CLUBS,          // РђСЃС‚РµСЂРѕРёРґС‹ - СЂР°Р·СЂСѓС€РµРЅРёРµ - С‚СЂРµС„С‹
+        JOKER           // РљРѕРјРјСѓРЅРёР·Рј - РґР¶РѕРєРµСЂ - РґР»СЏ РѕР±РѕР·РЅР°С‡РµРЅРёСЏ РµРіРѕ С†РІРµС‚Р°, РЅРѕ С‚СѓС‚ РµС‰С‘ РЅР°РґРѕ РїРѕРґСѓРјР°С‚СЊ, РєР°Рє СЌС‚Рѕ СЃРґРµР»Р°С‚СЊ РЅРµ С‚Р°Рє РїРѕ-СѓРµР±Р°РЅСЃРєРё
     };
 
     enum Rank {
-        TWO = 2,        // Народные массы
-        TEN = 10,       // Пионер
-        JACK = 11,      // Октябрёнок
-        QUEEN = 12,     // Комсомолка
-        KING = 13,      // Вождь
-        ACE = 14,       // Революция
-        JOKER_RANK = 15 // Коммунизм
+        TWO = 2,        // РќР°СЂРѕРґРЅС‹Рµ РјР°СЃСЃС‹
+        TEN = 10,       // РџРёРѕРЅРµСЂ
+        JACK = 11,      // РћРєС‚СЏР±СЂС‘РЅРѕРє
+        QUEEN = 12,     // РљРѕРјСЃРѕРјРѕР»РєР°
+        KING = 13,      // Р’РѕР¶РґСЊ
+        ACE = 14,       // Р РµРІРѕР»СЋС†РёСЏ
+        JOKER_RANK = 15 // РљРѕРјРјСѓРЅРёР·Рј
     };
 
     Suit suit;
     Rank rank;
-    bool isFaceUp; // то есть твоя карта или чужая (лицом к верху?)
+    bool isFaceUp; // С‚Рѕ РµСЃС‚СЊ С‚РІРѕСЏ РєР°СЂС‚Р° РёР»Рё С‡СѓР¶Р°СЏ (Р»РёС†РѕРј Рє РІРµСЂС…Сѓ?)
     glm::vec2 position;
-    int id; // Уникальный ID для идентификации
+    int id; // РЈРЅРёРєР°Р»СЊРЅС‹Р№ ID РґР»СЏ РёРґРµРЅС‚РёС„РёРєР°С†РёРё
 
-    // Конструктор по умолчанию
+    // РљРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
     Card() : suit(SPADES), rank(TWO), isFaceUp(true), position(0.0f, 0.0f), id(-1) {}
 
     Card(Suit s, Rank r, int cardId) : suit(s), rank(r), isFaceUp(true), id(cardId) {
@@ -72,7 +72,7 @@ public:
         else if (rank == KING) rankStr = "K";
         else if (rank == ACE) rankStr = "A";
         else if (rank == JOKER_RANK) rankStr = "Communism";
-        // else rankStr = std::to_string(rank);  пидорас
+        // else rankStr = std::to_string(rank);  РїРёРґРѕСЂР°СЃ
 
         return "C:/try/test20072025/textures/" + rankStr + "_" + suitStr + ".png";
     }
@@ -84,23 +84,23 @@ private:
 
 public:
     ~TextureManager() {
-        // Очистка всех текстур
+        // РћС‡РёСЃС‚РєР° РІСЃРµС… С‚РµРєСЃС‚СѓСЂ
         for (auto& pair : textures) {
             glDeleteTextures(1, &pair.second);
         }
     }
 
     unsigned int loadTexture(const std::string& filename) {
-        // Проверяем, загружена ли уже текстура
+        // РџСЂРѕРІРµСЂСЏРµРј, Р·Р°РіСЂСѓР¶РµРЅР° Р»Рё СѓР¶Рµ С‚РµРєСЃС‚СѓСЂР°
         if (textures.find(filename) != textures.end()) {
             return textures[filename];
         }
 
-        // Генерируем ID для новой текстуры
+        // Р“РµРЅРµСЂРёСЂСѓРµРј ID РґР»СЏ РЅРѕРІРѕР№ С‚РµРєСЃС‚СѓСЂС‹
         unsigned int textureID;
         glGenTextures(1, &textureID);
 
-        // Загружаем изображение
+        // Р—Р°РіСЂСѓР¶Р°РµРј РёР·РѕР±СЂР°Р¶РµРЅРёРµ
         int width, height, nrChannels;
         unsigned char* data = stbi_load(filename.c_str(), &width, &height, &nrChannels, 0);
 
@@ -115,17 +115,17 @@ public:
 
             glBindTexture(GL_TEXTURE_2D, textureID);
 
-            // Загружаем текстуру
+            // Р—Р°РіСЂСѓР¶Р°РµРј С‚РµРєСЃС‚СѓСЂСѓ
             glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
 
-            // Параметры текстуры
+            // РџР°СЂР°РјРµС‚СЂС‹ С‚РµРєСЃС‚СѓСЂС‹
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            // Сохраняем текстуру в кэш
+            // РЎРѕС…СЂР°РЅСЏРµРј С‚РµРєСЃС‚СѓСЂСѓ РІ РєСЌС€
             textures[filename] = textureID;
 
             std::cout << "Successfully loaded texture: " << filename << std::endl;
@@ -133,11 +133,11 @@ public:
         else {
             std::cout << "Failed to load texture: " << filename << std::endl;
             std::cout << "STB error: " << stbi_failure_reason() << std::endl;
-            glDeleteTextures(1, &textureID); // Удаляем пустую текстуру
-            textureID = 0; // Возвращаем 0 как индикатор ошибки
+            glDeleteTextures(1, &textureID); // РЈРґР°Р»СЏРµРј РїСѓСЃС‚СѓСЋ С‚РµРєСЃС‚СѓСЂСѓ
+            textureID = 0; // Р’РѕР·РІСЂР°С‰Р°РµРј 0 РєР°Рє РёРЅРґРёРєР°С‚РѕСЂ РѕС€РёР±РєРё
         }
 
-        // Освобождаем память
+        // РћСЃРІРѕР±РѕР¶РґР°РµРј РїР°РјСЏС‚СЊ
         stbi_image_free(data);
         return textureID;
     }
@@ -159,7 +159,7 @@ static unsigned int compileShader(unsigned int type, const char* source) {
     return id;
 }
 
-static unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource) { // эти 2 функции статиковые вроде уже должны быть рабочими
+static unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource) { // СЌС‚Рё 2 С„СѓРЅРєС†РёРё СЃС‚Р°С‚РёРєРѕРІС‹Рµ РІСЂРѕРґРµ СѓР¶Рµ РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ СЂР°Р±РѕС‡РёРјРё
     unsigned int vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
     unsigned int fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
 
@@ -189,11 +189,11 @@ private:
     TextureManager textureManager;
 
     float vertices[20] = {
-        // координаты (x, y, z)    // текстурные координаты (в каком порядке мы натягиваем текстуру)
-         0.5f,  0.5f, 0.0f,  1.0f, 1.0f,  // верхний правый (правый верх текстуры)
-         0.5f, -0.5f, 0.0f,  1.0f, 0.0f,  // нижний правый (правый низ текстуры) 
-        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,  // нижний левый (левый низ текстуры)
-        -0.5f,  0.5f, 0.0f,  0.0f, 1.0f   // верхний левый (левый верх текстуры)
+        // РєРѕРѕСЂРґРёРЅР°С‚С‹ (x, y, z)    // С‚РµРєСЃС‚СѓСЂРЅС‹Рµ РєРѕРѕСЂРґРёРЅР°С‚С‹ (РІ РєР°РєРѕРј РїРѕСЂСЏРґРєРµ РјС‹ РЅР°С‚СЏРіРёРІР°РµРј С‚РµРєСЃС‚СѓСЂСѓ)
+         0.5f,  0.5f, 0.0f,  1.0f, 1.0f,  // РІРµСЂС…РЅРёР№ РїСЂР°РІС‹Р№ (РїСЂР°РІС‹Р№ РІРµСЂС… С‚РµРєСЃС‚СѓСЂС‹)
+         0.5f, -0.5f, 0.0f,  1.0f, 0.0f,  // РЅРёР¶РЅРёР№ РїСЂР°РІС‹Р№ (РїСЂР°РІС‹Р№ РЅРёР· С‚РµРєСЃС‚СѓСЂС‹) 
+        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,  // РЅРёР¶РЅРёР№ Р»РµРІС‹Р№ (Р»РµРІС‹Р№ РЅРёР· С‚РµРєСЃС‚СѓСЂС‹)
+        -0.5f,  0.5f, 0.0f,  0.0f, 1.0f   // РІРµСЂС…РЅРёР№ Р»РµРІС‹Р№ (Р»РµРІС‹Р№ РІРµСЂС… С‚РµРєСЃС‚СѓСЂС‹)
     };
 
     unsigned int indices[6] = {
@@ -202,7 +202,7 @@ private:
     };
 
 public:
-    void init() { // надо будет разобрать точнее что тут вообще происходит (ТРОГАТЬ НЕ НАДО)
+    void init() { // РЅР°РґРѕ Р±СѓРґРµС‚ СЂР°Р·РѕР±СЂР°С‚СЊ С‚РѕС‡РЅРµРµ С‡С‚Рѕ С‚СѓС‚ РІРѕРѕР±С‰Рµ РїСЂРѕРёСЃС…РѕРґРёС‚ (РўР РћР“РђРўР¬ РќР• РќРђР”Рћ)
         glGenVertexArrays(1, &VAO);
         glGenBuffers(1, &VBO);
         glGenBuffers(1, &EBO);
@@ -215,7 +215,7 @@ public:
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
-        // Атрибуты вершин
+        // РђС‚СЂРёР±СѓС‚С‹ РІРµСЂС€РёРЅ
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
 
@@ -226,7 +226,7 @@ public:
     }
 
     void createShaders() {
-        // Вершинный шейдер
+        // Р’РµСЂС€РёРЅРЅС‹Р№ С€РµР№РґРµСЂ
         const char* vertexShaderSource = R"(
         #version 330 core
         layout (location = 0) in vec3 aPos;
@@ -243,7 +243,7 @@ public:
         }
         )";
 
-        // Фрагментный шейдер
+        // Р¤СЂР°РіРјРµРЅС‚РЅС‹Р№ С€РµР№РґРµСЂ
         const char* fragmentShaderSource = R"(
         #version 330 core
         out vec4 FragColor;
@@ -256,36 +256,36 @@ public:
         )";
     }
 
-    void renderCard(const Card& card) { // ещё поразбирайся с этими матрицами !!!
-        // Создание матрицы трансформации
+    void renderCard(const Card& card) { // РµС‰С‘ РїРѕСЂР°Р·Р±РёСЂР°Р№СЃСЏ СЃ СЌС‚РёРјРё РјР°С‚СЂРёС†Р°РјРё !!!
+        // РЎРѕР·РґР°РЅРёРµ РјР°С‚СЂРёС†С‹ С‚СЂР°РЅСЃС„РѕСЂРјР°С†РёРё
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(card.position.x, card.position.y, 0.0f));
         model = glm::scale(model, glm::vec3(CARD_WIDTH, CARD_HEIGHT, 1.0f));
 
-        // Матрица проекции (ортографическая)
+        // РњР°С‚СЂРёС†Р° РїСЂРѕРµРєС†РёРё (РѕСЂС‚РѕРіСЂР°С„РёС‡РµСЃРєР°СЏ)
         glm::mat4 projection = glm::ortho(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT);
 
-        // Установка шейдеров
+        // РЈСЃС‚Р°РЅРѕРІРєР° С€РµР№РґРµСЂРѕРІ
         glUseProgram(shaderProgram);
 
-        // Передача матриц в шейдер
+        // РџРµСЂРµРґР°С‡Р° РјР°С‚СЂРёС† РІ С€РµР№РґРµСЂ
         unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
         unsigned int projLoc = glGetUniformLocation(shaderProgram, "projection");
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-        // Загрузка текстуры
+        // Р—Р°РіСЂСѓР·РєР° С‚РµРєСЃС‚СѓСЂС‹
         unsigned int texture = textureManager.loadTexture(card.getTextureName());
         glBindTexture(GL_TEXTURE_2D, texture);
 
-        // Рендеринг
+        // Р РµРЅРґРµСЂРёРЅРі
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
 
     void renderCards(const std::vector<Card>& cards) {
-        for (const auto& card : cards) { // просто проходка по всему массиву карт, если я правильно понимаю
+        for (const auto& card : cards) { // РїСЂРѕСЃС‚Рѕ РїСЂРѕС…РѕРґРєР° РїРѕ РІСЃРµРјСѓ РјР°СЃСЃРёРІСѓ РєР°СЂС‚, РµСЃР»Рё СЏ РїСЂР°РІРёР»СЊРЅРѕ РїРѕРЅРёРјР°СЋ
             renderCard(card);
         }
     }
@@ -296,13 +296,13 @@ private:
     CardRenderer cardRenderer;
     std::vector<Card> playerCards;
     std::vector<Card> computerCards;
-    std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
-    // ещё как-то надо, чтобы программа определяла, что карта действительно побита, а не просто лежит на столе, думаю о массиве списков длинной 2
-    // но звучит пиздец запарно реализовывать списки чисто для этого (хотя вроде в плюсах это делается быстро)
-    Card trumpCard; // козырь
+    std::vector<Card> tableCards; // РЅР° РєР°СЂС‚С‹ РЅР° СЃС‚РѕР»Рµ РЅР°РґРѕ Р±СѓРґРµС‚ РїРѕС‚РѕРј РїРѕСЃС‚Р°РІРёС‚СЊ РѕРіСЂР°РЅРёС‡РµРЅРёРµ РІ СѓСЃР»РѕРІРЅС‹Рµ 8-10 (?) С€С‚СѓРє
+    // РµС‰С‘ РєР°Рє-С‚Рѕ РЅР°РґРѕ, С‡С‚РѕР±С‹ РїСЂРѕРіСЂР°РјРјР° РѕРїСЂРµРґРµР»СЏР»Р°, С‡С‚Рѕ РєР°СЂС‚Р° РґРµР№СЃС‚РІРёС‚РµР»СЊРЅРѕ РїРѕР±РёС‚Р°, Р° РЅРµ РїСЂРѕСЃС‚Рѕ Р»РµР¶РёС‚ РЅР° СЃС‚РѕР»Рµ, РґСѓРјР°СЋ Рѕ РјР°СЃСЃРёРІРµ СЃРїРёСЃРєРѕРІ РґР»РёРЅРЅРѕР№ 2
+    // РЅРѕ Р·РІСѓС‡РёС‚ РїРёР·РґРµС† Р·Р°РїР°СЂРЅРѕ СЂРµР°Р»РёР·РѕРІС‹РІР°С‚СЊ СЃРїРёСЃРєРё С‡РёСЃС‚Рѕ РґР»СЏ СЌС‚РѕРіРѕ (С…РѕС‚СЏ РІСЂРѕРґРµ РІ РїР»СЋСЃР°С… СЌС‚Рѕ РґРµР»Р°РµС‚СЃСЏ Р±С‹СЃС‚СЂРѕ)
+    Card trumpCard; // РєРѕР·С‹СЂСЊ
 
 public:
-    // Явный конструктор по умолчанию НЕ УДАЛЯТЬ!!! по сути абсолютно бесполезен (НО В НЁМ МОЖЕТ БЫТЬ ПРОБЛЕМА!!!)
+    // РЇРІРЅС‹Р№ РєРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РќР• РЈР”РђР›РЇРўР¬!!! РїРѕ СЃСѓС‚Рё Р°Р±СЃРѕР»СЋС‚РЅРѕ Р±РµСЃРїРѕР»РµР·РµРЅ (РќРћ Р’ РќРЃРњ РњРћР–Р•Рў Р‘Р«РўР¬ РџР РћР‘Р›Р•РњРђ!!!)
     GameTable() : cardRenderer(), playerCards(), computerCards(),
         tableCards(), trumpCard() {
         createTestDeck();
@@ -312,37 +312,37 @@ public:
         setupInitialPositions();
     }
 
-    // Создание тестовой колоды для проверки, нахуя ?
+    // РЎРѕР·РґР°РЅРёРµ С‚РµСЃС‚РѕРІРѕР№ РєРѕР»РѕРґС‹ РґР»СЏ РїСЂРѕРІРµСЂРєРё, РЅР°С…СѓСЏ ?
     void createTestDeck() {
-        // Очищаем существующие карты
+        // РћС‡РёС‰Р°РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёРµ РєР°СЂС‚С‹
         playerCards.clear();
         computerCards.clear();
         tableCards.clear();
 
-        // Создаем тестовые карты игрока
+        // РЎРѕР·РґР°РµРј С‚РµСЃС‚РѕРІС‹Рµ РєР°СЂС‚С‹ РёРіСЂРѕРєР°
         for (int i = 0; i < 6; ++i) {
             Card::Rank rank = static_cast<Card::Rank>(Card::TWO + (i % 13));
             Card::Suit suit = static_cast<Card::Suit>(i % 4);
             playerCards.emplace_back(suit, rank, i);
         }
 
-        // Создаем тестовые карты компьютера
+        // РЎРѕР·РґР°РµРј С‚РµСЃС‚РѕРІС‹Рµ РєР°СЂС‚С‹ РєРѕРјРїСЊСЋС‚РµСЂР°
         for (int i = 0; i < 6; ++i) {
             Card::Rank rank = static_cast<Card::Rank>(Card::TWO + (i % 13));
             Card::Suit suit = static_cast<Card::Suit>((i + 1) % 4);
             computerCards.emplace_back(suit, rank, i + 100);
         }
 
-        // Козырь
+        // РљРѕР·С‹СЂСЊ
         trumpCard = Card(Card::SPADES, Card::ACE, 200);
     }
 
 
     void setupInitialPositions() {
-        // карты игрока 
-        float startX = (WINDOW_WIDTH - 5 * CARD_WIDTH) / 2.0f; // центрируем 5 карт по ширине окна
-        float y = 50.0f; // 50 пикселей от нижнего края В ПИКСЕЛЯХ ИЗ-ЗА glm::mat4 projection = glm::ortho(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT);
-        // эта штука создает матрицу проекции, которая преобразует пиксели в OpenGL коорды [-1, 1] 
+        // РєР°СЂС‚С‹ РёРіСЂРѕРєР° 
+        float startX = (WINDOW_WIDTH - 5 * CARD_WIDTH) / 2.0f; // С†РµРЅС‚СЂРёСЂСѓРµРј 5 РєР°СЂС‚ РїРѕ С€РёСЂРёРЅРµ РѕРєРЅР°
+        float y = 50.0f; // 50 РїРёРєСЃРµР»РµР№ РѕС‚ РЅРёР¶РЅРµРіРѕ РєСЂР°СЏ Р’ РџРРљРЎР•Р›РЇРҐ РР—-Р—Рђ glm::mat4 projection = glm::ortho(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT);
+        // СЌС‚Р° С€С‚СѓРєР° СЃРѕР·РґР°РµС‚ РјР°С‚СЂРёС†Сѓ РїСЂРѕРµРєС†РёРё, РєРѕС‚РѕСЂР°СЏ РїСЂРµРѕР±СЂР°Р·СѓРµС‚ РїРёРєСЃРµР»Рё РІ OpenGL РєРѕРѕСЂРґС‹ [-1, 1] 
 
         for (int i = 0; i < playerCards.size() && i < 6; ++i) {
             playerCards[i].position = glm::vec2(startX + i * CARD_WIDTH, y);
@@ -355,7 +355,7 @@ public:
             computerCards[i].isFaceUp = false; 
         }
 
-        // карты на столе
+        // РєР°СЂС‚С‹ РЅР° СЃС‚РѕР»Рµ
         startX = (WINDOW_WIDTH - 3 * CARD_WIDTH) / 2.0f;
         y = WINDOW_HEIGHT / 2.0f - CARD_HEIGHT / 2.0f;
 
@@ -382,7 +382,7 @@ public:
         }
     }
 
-    // могут понадобиться для логики игры хз
+    // РјРѕРіСѓС‚ РїРѕРЅР°РґРѕР±РёС‚СЊСЃСЏ РґР»СЏ Р»РѕРіРёРєРё РёРіСЂС‹ С…Р·
     std::vector<Card>& getPlayerCards() { return playerCards; }
     std::vector<Card>& getComputerCards() { return computerCards; }
     std::vector<Card>& getTableCards() { return tableCards; }
@@ -394,7 +394,7 @@ public:
     void setTrumpCard(const Card& card) { trumpCard = card; }
 };
 
-class AudioManager { // идентичный старому проекту, работает 
+class AudioManager { // РёРґРµРЅС‚РёС‡РЅС‹Р№ СЃС‚Р°СЂРѕРјСѓ РїСЂРѕРµРєС‚Сѓ, СЂР°Р±РѕС‚Р°РµС‚ 
     ALCdevice* device;
     ALCcontext* context;
     ALuint buffer;
@@ -455,12 +455,12 @@ private:
     int selectedCardIndex = -1;
 
 public:
-    // Проверка, попал ли клик по карте
+    // РџСЂРѕРІРµСЂРєР°, РїРѕРїР°Р» Р»Рё РєР»РёРє РїРѕ РєР°СЂС‚Рµ
     int getCardAtPosition(double xpos, double ypos) {
-        // ypos от верхнего левого угла -> в нижний левый
+        // ypos РѕС‚ РІРµСЂС…РЅРµРіРѕ Р»РµРІРѕРіРѕ СѓРіР»Р° -> РІ РЅРёР¶РЅРёР№ Р»РµРІС‹Р№
         ypos = WINDOW_HEIGHT - ypos;
 
-        // Проверяем карты игрока (в порядке справа налево, чтобы верхние карты проверялись первыми)
+        // РџСЂРѕРІРµСЂСЏРµРј РєР°СЂС‚С‹ РёРіСЂРѕРєР° (РІ РїРѕСЂСЏРґРєРµ СЃРїСЂР°РІР° РЅР°Р»РµРІРѕ, С‡С‚РѕР±С‹ РІРµСЂС…РЅРёРµ РєР°СЂС‚С‹ РїСЂРѕРІРµСЂСЏР»РёСЃСЊ РїРµСЂРІС‹РјРё)
         for (int i = playerCards.size() - 1; i >= 0; --i) {
             if (i >= 6) continue; 
 
@@ -470,31 +470,31 @@ public:
                 xpos <= card.position.x + CARD_WIDTH &&
                 ypos >= card.position.y &&
                 ypos <= card.position.y + CARD_HEIGHT) {
-                return i; // Возвращаем индекс найденной карты
+                return i; // Р’РѕР·РІСЂР°С‰Р°РµРј РёРЅРґРµРєСЃ РЅР°Р№РґРµРЅРЅРѕР№ РєР°СЂС‚С‹
             }
         }
 
-        return -1; // где карта
+        return -1; // РіРґРµ РєР°СЂС‚Р°
     }
 
     void onMouseClick(double xpos, double ypos) {
         int clickedCardIndex = getCardAtPosition(xpos, ypos);
 
         if (clickedCardIndex != -1) {
-            std::cout << "Клик по карте #" << clickedCardIndex << std::endl;
+            std::cout << "РљР»РёРє РїРѕ РєР°СЂС‚Рµ #" << clickedCardIndex << std::endl;
             selectedCardIndex = clickedCardIndex;
 
             onCardSelected(clickedCardIndex);
         }
         else {
             selectedCardIndex = -1;
-            std::cout << "Клик мимо карт" << std::endl; // лол
+            std::cout << "РљР»РёРє РјРёРјРѕ РєР°СЂС‚" << std::endl; // Р»РѕР»
         }
     }
 
     void onCardSelected(int cardIndex) {
-        // возможно здесь будет логика игры TODO?
-        std::cout << "Выбрана карта: " << playerCards[cardIndex].getTextureName() << std::endl;
+        // РІРѕР·РјРѕР¶РЅРѕ Р·РґРµСЃСЊ Р±СѓРґРµС‚ Р»РѕРіРёРєР° РёРіСЂС‹ TODO?
+        std::cout << "Р’С‹Р±СЂР°РЅР° РєР°СЂС‚Р°: " << playerCards[cardIndex].getTextureName() << std::endl;
     }
 };
 
@@ -508,7 +508,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     }
 }
 
-int main() { // это возможно будет вынесена в класс GameConstructor или вроде того
+int main() { // СЌС‚Рѕ РІРѕР·РјРѕР¶РЅРѕ Р±СѓРґРµС‚ РІС‹РЅРµСЃРµРЅР° РІ РєР»Р°СЃСЃ GameConstructor РёР»Рё РІСЂРѕРґРµ С‚РѕРіРѕ
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -547,9 +547,9 @@ int main() { // это возможно будет вынесена в класс GameConstructor или вроде то
     GameTable gameTable;
     gameTable.init();
 
-    // Основной цикл
+    // РћСЃРЅРѕРІРЅРѕР№ С†РёРєР»
     while (!glfwWindowShouldClose(window)) {
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) // TODO: тут ещё недописана обработка ввода, он просто пока понимает, на что нажали (наверное понимает)
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) // TODO: С‚СѓС‚ РµС‰С‘ РЅРµРґРѕРїРёСЃР°РЅР° РѕР±СЂР°Р±РѕС‚РєР° РІРІРѕРґР°, РѕРЅ РїСЂРѕСЃС‚Рѕ РїРѕРєР° РїРѕРЅРёРјР°РµС‚, РЅР° С‡С‚Рѕ РЅР°Р¶Р°Р»Рё (РЅР°РІРµСЂРЅРѕРµ РїРѕРЅРёРјР°РµС‚)
             glfwSetWindowShouldClose(window, true);
 
         gameTable.render();
