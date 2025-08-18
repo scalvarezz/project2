@@ -10,6 +10,7 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <sndfile.hh>
+#include <cstdlib>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -23,20 +24,20 @@ class Card {
 public:
     enum Suit {
         SPADES = 0,     // Спутники - наука - пики
-        HEARTS,         // Ракеты - армия - черви
-        DIAMONDS,       // Звёзды - пропаганда - бубны
-        CLUBS,          // Астероиды - разрушение - трефы
-        JOKER           // Коммунизм - джокер - для обозначения его цвета, но тут ещё надо подумать, как это сделать не так по-уебански
+        HEARTS = 1,         // Ракеты - армия - черви
+        DIAMONDS = 2,       // Звёзды - пропаганда - бубны
+        CLUBS = 3,          // Астероиды - разрушение - трефы
+        JOKER = 4        // Коммунизм - джокер - для обозначения его цвета, но тут ещё надо подумать, как это сделать не так по-уебански
     };
 
     enum Rank {
-        TWO = 2,        // Народные массы
-        TEN = 10,       // Пионер
-        JACK = 11,      // Октябрёнок
-        QUEEN = 12,     // Комсомолка
-        KING = 13,      // Вождь
-        ACE = 14,       // Революция
-        JOKER_RANK = 15 // Коммунизм
+        TWO = 0,        // Народные массы
+        TEN = 1,       // Пионер
+        JACK = 2,      // Октябрёнок
+        QUEEN = 3,     // Комсомолка
+        KING = 4,      // Вождь
+        ACE = 5,       // Революция
+        JOKER_RANK = 6 // Коммунизм
     };
 
     Suit suit;
@@ -74,9 +75,19 @@ public:
         else if (rank == JOKER_RANK) rankStr = "Communism";
         // else rankStr = std::to_string(rank);  пидорас
 
-        return "C:/try/test20072025/textures/" + rankStr + "_" + suitStr + ".png";
+        return "C:/try/test20072025/textures/" + rankStr + "_" + suitStr + ".png"; // джокеры пока названы так, что эта штука их не найдёт
     }
 };
+
+enum class GameState {
+    MAIN_MENU = 0,
+    PLAYER_TURN_ATTACK = 1,
+    PLAYER_TURN_DEFEND = 2,
+    COMPUTER_TURN_ATTACK = 3,
+    COMPUTER_TURN_DEFEND = 4,
+    GAME_OVER = 5
+};
+
 
 class TextureManager {
 private:
@@ -142,45 +153,6 @@ public:
         return textureID;
     }
 };
-
-static unsigned int compileShader(unsigned int type, const char* source) {
-    unsigned int id = glCreateShader(type);
-    glShaderSource(id, 1, &source, nullptr);
-    glCompileShader(id);
-
-    int success;
-    char infoLog[512];
-    glGetShaderiv(id, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(id, 512, nullptr, infoLog);
-        std::cout << "ERROR::SHADER::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    return id;
-}
-
-static unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource) { // эти 2 функции статиковые вроде уже должны быть рабочими
-    unsigned int vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
-    unsigned int fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
-
-    unsigned int program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
-
-    int success;
-    char infoLog[512];
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(program, 512, nullptr, infoLog);
-        std::cout << "ERROR::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-    }
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-
-    return program;
-}
 
 class CardRenderer {
 private:
@@ -447,22 +419,25 @@ public:
     };
 };
 
-class CardManager {
+class KeyboardManager {
 private:
-    std::vector<Card> playerCards;
-    std::vector<Card> computerCards;
-    std::vector<Card> tableCards;
+    GameTable& gameTable; // Ссылка на GameTable вместо дублирования векторов
     int selectedCardIndex = -1;
 
 public:
+    // Конструктор, принимающий ссылку на GameTable
+    KeyboardManager(GameTable& table) : gameTable(table), selectedCardIndex(-1) {}
+
     // Проверка, попал ли клик по карте
     int getCardAtPosition(double xpos, double ypos) {
         // ypos от верхнего левого угла -> в нижний левый
         ypos = WINDOW_HEIGHT - ypos;
 
+        // Получаем карты игрока из GameTable
+        std::vector<Card>& playerCards = gameTable.getPlayerCards();
         // Проверяем карты игрока (в порядке справа налево, чтобы верхние карты проверялись первыми)
         for (int i = playerCards.size() - 1; i >= 0; --i) {
-            if (i >= 6) continue; 
+            if (i >= 6) continue;
 
             const Card& card = playerCards[i];
 
@@ -474,90 +449,331 @@ public:
             }
         }
 
-        return -1; // где карта
+        return -1;
     }
 
     void onMouseClick(double xpos, double ypos) {
         int clickedCardIndex = getCardAtPosition(xpos, ypos);
-
         if (clickedCardIndex != -1) {
             std::cout << "Клик по карте #" << clickedCardIndex << std::endl;
             selectedCardIndex = clickedCardIndex;
-
             onCardSelected(clickedCardIndex);
         }
         else {
             selectedCardIndex = -1;
-            std::cout << "Клик мимо карт" << std::endl; // лол
+            std::cout << "Клик мимо карт" << std::endl;
         }
     }
 
     void onCardSelected(int cardIndex) {
-        // возможно здесь будет логика игры TODO?
-        std::cout << "Выбрана карта: " << playerCards[cardIndex].getTextureName() << std::endl;
+        // Получаем карту из GameTable
+        std::vector<Card>& playerCards = gameTable.getPlayerCards();
+        if (cardIndex >= 0 && cardIndex < static_cast<int>(playerCards.size())) {
+            std::cout << "Выбрана карта: " << playerCards[cardIndex].getTextureName() << std::endl;
+        }
     }
+    // Метод для получения выбранной карты
+    int getSelectedCardIndex() const { return selectedCardIndex; }
+
+    // Метод для сброса выбора
+    void clearSelection() { selectedCardIndex = -1; }
 };
 
-CardManager cardManager;
+KeyboardManager keyManager;
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) { // это зачем ваще?
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
         double xpos, ypos;
         glfwGetCursorPos(window, &xpos, &ypos);
-        cardManager.onMouseClick(xpos, ypos);
+        keyManager.onMouseClick(xpos, ypos);
     }
 }
 
-int main() { // это возможно будет вынесена в класс GameConstructor или вроде того
-    glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Space Side Suicide", nullptr, nullptr);
-    if (window == nullptr) {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-
-    AudioManager audioManager;
-    ALuint musicBuffer = audioManager.loadAudio("C:/try/test20072025/textures/Deep_Cover.mp3");
-    if (musicBuffer == 0) {
-        std::cout << "Warning: Failed to load background music" << std::endl;
-    }
-    else {
-        ALuint musicSource = audioManager.playAudio(musicBuffer);
-        alSourcei(musicSource, AL_LOOPING, AL_TRUE);
-        audioManager.setVolume(musicSource, 0.5f);
-
-        std::cout << "Background music started playing" << std::endl;
-    }
-
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-        return -1;
-    }
-
-    glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-
+class Game {
+private:
+    GLFWwindow* window;
     GameTable gameTable;
-    gameTable.init();
+    AudioManager audioManager;
+    KeyboardManager keyManager; // Переименовал из KeyboardManager в CardManager
+    ALuint backgroundMusic;
+    GameState currentState; // Добавляем состояние игры
 
-    // Основной цикл
-    while (!glfwWindowShouldClose(window)) {
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) // TODO: тут ещё недописана обработка ввода, он просто пока понимает, на что нажали (наверное понимает)
-            glfwSetWindowShouldClose(window, true);
-
-        gameTable.render();
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+public:
+    Game() : window(nullptr), gameTable(), keyManager(gameTable),
+        backgroundMusic(0), currentState(GameState::MAIN_MENU) {
     }
 
-    glfwTerminate();
+    ~Game() {
+        if (backgroundMusic) {
+            audioManager.stopAudio(backgroundMusic);
+        }
+        if (window) {
+            glfwDestroyWindow(window);
+            glfwTerminate();
+        }
+    }
+
+    bool initialize() {
+        // Инициализация GLFW
+        if (!glfwInit()) {
+            std::cerr << "Failed to initialize GLFW" << std::endl;
+            return false;
+        }
+
+        // Создание окна
+        window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Space Side Suicide", nullptr, nullptr);
+        if (!window) {
+            std::cerr << "Failed to create GLFW window" << std::endl;
+            glfwTerminate();
+            return false;
+        }
+
+        glfwMakeContextCurrent(window);
+
+        // Инициализация GLAD
+        if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+            std::cerr << "Failed to initialize GLAD" << std::endl;
+            return false;
+        }
+
+        // Настройка OpenGL
+        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // Sound
+        ALuint musicBuffer = audioManager.loadAudio("C:/try/test20072025/textures/Deep_Cover.mp3");
+        if (musicBuffer == 0) {
+            std::cout << "Warning: Failed to load background music" << std::endl;
+        }
+        else {
+            ALuint musicSource = audioManager.playAudio(musicBuffer);
+            alSourcei(musicSource, AL_LOOPING, AL_TRUE);
+            audioManager.setVolume(musicSource, 0.5f);
+        }
+
+        // Инициализация игровых объектов
+        gameTable.init();
+
+        // Установка callback'ов
+        glfwSetWindowUserPointer(window, this);
+        glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
+            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+                double xpos, ypos;
+                glfwGetCursorPos(w, &xpos, &ypos);
+                auto game = static_cast<Game*>(glfwGetWindowUserPointer(w));
+                game->handleMouseClick(xpos, ypos);
+            }
+            });
+
+        // Установка callback для клавиатуры
+        glfwSetKeyCallback(window, [](GLFWwindow* w, int key, int scancode, int action, int mods) {
+            auto game = static_cast<Game*>(glfwGetWindowUserPointer(w));
+            if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+                game->handleKeyPress(key);
+            }
+            });
+
+        return true;
+    }
+
+    void run() {
+        while (!glfwWindowShouldClose(window)) {
+            update();
+            render();
+
+            glfwSwapBuffers(window);
+            glfwPollEvents();
+        }
+    }
+
+    // Методы для управления состоянием игры
+    void setState(GameState newState) {
+        currentState = newState;
+    }
+
+    GameState getCurrentState() const {
+        return currentState;
+    }
+
+private:
+    void update() {
+        // Обновление игрового состояния в зависимости от currentState
+        switch (currentState) {
+        case GameState::MAIN_MENU:
+            updateMainMenu();
+            break;
+        case GameState::PLAYER_TURN_ATTACK:
+            updatePlayerAttack();
+            break;
+        case GameState::PLAYER_TURN_DEFEND:
+            updatePlayerDefend();
+            break;
+        case GameState::COMPUTER_TURN_ATTACK:
+            updateComputerAttack();
+            break;
+        case GameState::COMPUTER_TURN_DEFEND:
+            updateComputerDefend();
+            break;
+        case GameState::GAME_OVER:
+            updateGameOver();
+            break;
+        }
+    }
+
+    void render() {
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // Рендеринг в зависимости от состояния
+        switch (currentState) {
+        case GameState::MAIN_MENU:
+            renderMainMenu();
+            break;
+        default:
+            gameTable.render();
+            renderUI();
+            break;
+        }
+    }
+
+    void handleMouseClick(double xpos, double ypos) {
+        switch (currentState) {
+        case GameState::MAIN_MENU:
+            // Обработка кликов в меню
+            handleMainMenuClick(xpos, ypos);
+            break;
+        case GameState::PLAYER_TURN_ATTACK:
+            // Обработка выбора карты для атаки
+            keyManager.onMouseClick(xpos, ypos);
+            break;
+        case GameState::PLAYER_TURN_DEFEND:
+            // Обработка выбора карты для защиты
+            keyManager.onMouseClick(xpos, ypos);
+            break;
+        case GameState::COMPUTER_TURN_ATTACK:
+        case GameState::COMPUTER_TURN_DEFEND:
+            // Возможно, обработка кликов во время хода компьютера
+            break;
+        case GameState::GAME_OVER:
+            // Обработка кликов в конце игры
+            break;
+        }
+    }
+
+    void handleKeyPress(int key) {
+        switch (currentState) {
+        case GameState::MAIN_MENU:
+            if (key == GLFW_KEY_ENTER || key == GLFW_KEY_SPACE) {
+                currentState = GameState::PLAYER_TURN_ATTACK;
+            }
+            break;
+        case GameState::PLAYER_TURN_ATTACK:
+        case GameState::PLAYER_TURN_DEFEND:
+            if (key == GLFW_KEY_ESCAPE) {
+                currentState = GameState::MAIN_MENU;
+            }
+            break;
+        case GameState::GAME_OVER:
+            if (key == GLFW_KEY_R) {
+                // Перезапуск игры
+                restartGame();
+            }
+            break;
+        }
+    }
+
+    // Методы для конкретных состояний игры
+    void updateMainMenu() { // это скорее всего не понадобится 
+        // Логика главного меню
+    }
+
+    void updatePlayerAttack() {
+        // Логика атаки игрока
+        // Проверяем выбранную карту через cardManager
+        int selectedCard = keyManager.getSelectedCardIndex();
+        if (selectedCard != -1) {
+            // Обрабатываем выбор карты для атаки
+            std::cout << "Игрок атакует картой #" << selectedCard << std::endl;
+            // Здесь будет логика игры...
+            keyManager.clearSelection();
+        }
+    }
+
+    void updatePlayerDefend() {
+        // Логика защиты игрока
+        int selectedCard = keyManager.getSelectedCardIndex();
+        if (selectedCard != -1) {
+            // Обрабатываем выбор карты для защиты
+            std::cout << "Игрок защищается картой #" << selectedCard << std::endl;
+            // Здесь будет логика игры...
+            keyManager.clearSelection();
+        }
+    }
+
+    void updateComputerAttack() {
+        // Логика атаки компьютера
+        // После завершения хода компьютера меняем состояние
+        // currentState = GameState::PLAYER_TURN_DEFEND;
+    }
+
+    void updateComputerDefend() {
+        // Логика защиты компьютера
+        // После завершения хода компьютера меняем состояние
+        // currentState = GameState::PLAYER_TURN_ATTACK;
+    }
+
+    void updateGameOver() {
+        // Логика конца игры
+    }
+
+    void renderMainMenu() {
+        // Рендеринг главного меню
+        std::cout << "Отображение главного меню" << std::endl;
+        // Здесь будет рендеринг меню
+    }
+
+    void renderUI() {
+        // Рендеринг интерфейса (кнопки, текст и т.д.)
+        switch (currentState) {
+        case GameState::PLAYER_TURN_ATTACK:
+            std::cout << "Ход игрока: атака" << std::endl;
+            break;
+        case GameState::PLAYER_TURN_DEFEND:
+            std::cout << "Ход игрока: защита" << std::endl;
+            break;
+        case GameState::COMPUTER_TURN_ATTACK:
+            std::cout << "Ход компьютера: атака" << std::endl;
+            break;
+        case GameState::COMPUTER_TURN_DEFEND:
+            std::cout << "Ход компьютера: защита" << std::endl;
+            break;
+        }
+    }
+
+    void handleMainMenuClick(double xpos, double ypos) {
+        // Обработка кликов в главном меню
+        // Пока просто переход в игру
+        currentState = GameState::PLAYER_TURN_ATTACK;
+    }
+
+    void restartGame() {
+        // Перезапуск игры
+        gameTable = GameTable();
+        gameTable.init();
+        currentState = GameState::MAIN_MENU;
+    }
+};
+
+int main() {
+    Game game;
+
+    if (!game.initialize()) {
+        std::cerr << "Failed to initialize game!" << std::endl;
+        return -1;
+    }
+
+    game.run();
+
     return 0;
 }
