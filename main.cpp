@@ -11,6 +11,8 @@
 #include <AL/alc.h>
 #include <sndfile.hh>
 #include <cstdlib>
+#include <set>
+#include <random>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -83,7 +85,7 @@ enum class GameState {
     MAIN_MENU = 0,
     PLAYER_TURN_ATTACK = 1,
     PLAYER_TURN_DEFEND = 2,
-    COMPUTER_TURN_ATTACK = 3,
+    COMPUTER_TURN_ATTACK = 3, 
     COMPUTER_TURN_DEFEND = 4,
     GAME_OVER = 5
 };
@@ -489,14 +491,297 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     }
 }
 
+class GameLogic {
+private:
+    GameTable& gameTable;
+    std::mt19937 rng; // Генератор случайных чисел
+
+public:
+    GameLogic(GameTable& table) : gameTable(table), rng(std::random_device{}()) {}
+
+    // Создание полной колоды карт
+    std::vector<Card> createFullDeck() {
+        std::vector<Card> deck;
+        int id = 0;
+
+        // Создаем стандартные карты (без джокеров)
+        for (int suit = 0; suit < 4; ++suit) {
+            for (int rank = 0; rank < 6; ++rank) { // TWO до ACE
+                deck.emplace_back(static_cast<Card::Suit>(suit),
+                    static_cast<Card::Rank>(rank), id++);
+            }
+        }
+
+        // Добавляем джокеров
+        deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
+        deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
+
+        return deck;
+    }
+
+    // Перемешивание колоды
+    void shuffleDeck(std::vector<Card>& deck) {
+        std::shuffle(deck.begin(), deck.end(), rng);
+    }
+
+    // Раздача карт
+    void dealCards(std::vector<Card>& deck) {
+        auto& playerCards = gameTable.getPlayerCards();
+        auto& computerCards = gameTable.getComputerCards();
+
+        playerCards.clear();
+        computerCards.clear();
+
+        // Раздаем по 6 карт каждому
+        for (int i = 0; i < 6; ++i) {
+            if (!deck.empty()) {
+                playerCards.push_back(deck.back());
+                deck.pop_back();
+            }
+            if (!deck.empty()) {
+                computerCards.push_back(deck.back());
+                deck.pop_back();
+            }
+        }
+
+        // Определяем козырь
+        if (!deck.empty()) {
+            Card trump = deck.back();
+            deck.pop_back();
+            gameTable.setTrumpCard(trump);
+        }
+    }
+
+    // Логика битвы карт
+
+    // Проверка, можно ли побить карту attackCard картой defendCard
+    bool canBeatCard(const Card& attackCard, const Card& defendCard, const Card& trumpCard) {
+        // Джокер бьет все карты
+        if (defendCard.rank == Card::JOKER_RANK) {
+            return true;
+        }
+
+        // Джокера можно побить только другим джокером
+        if (attackCard.rank == Card::JOKER_RANK) {
+            return defendCard.rank == Card::JOKER_RANK;
+        }
+
+        // Если козырь
+        if (defendCard.suit == trumpCard.suit) {
+            // Козырь бьет все некозырные карты
+            if (attackCard.suit != trumpCard.suit) {
+                return true;
+            }
+            // Козырь бьет козырь только если старше
+            else {
+                return getCardValue(defendCard) > getCardValue(attackCard);
+            }
+        }
+        // Если обе карты некозырные
+        else if (attackCard.suit == defendCard.suit) {
+            // Одинаковая масть - сравниваем достоинства
+            return getCardValue(defendCard) > getCardValue(attackCard);
+        }
+
+        // Разные масти, защита не козырь - нельзя побить
+        return false;
+    }
+
+    // Получение числового значения карты для сравнения
+    int getCardValue(const Card& card) {
+        if (card.rank == Card::JOKER_RANK) return 100; // Джокер самый старший
+
+        switch (card.rank) {
+        case Card::TWO: return 2;
+        case Card::TEN: return 10;
+        case Card::JACK: return 11;
+        case Card::QUEEN: return 12;
+        case Card::KING: return 13;
+        case Card::ACE: return 14;
+        default: return 1;
+        }
+    }
+
+    // ========================================================================================
+    // Логика ИИ компьютера ТУТ НАДО ПРИКРУТИТЬ ПАРАЛЛЕЛИЗМА ОБЯЗАТЕЛЬНО!!!!!!!!!!!!!!!!!!!!!!!
+    // ========================================================================================
+
+    // Выбор карты для атаки компьютером
+    int getComputerAttackCard() {
+        auto& computerCards = gameTable.getComputerCards();
+        auto& tableCards = gameTable.getTableCards();
+
+        if (computerCards.empty()) return -1;
+
+        // Если стол пуст - атакуем любой картой
+        if (tableCards.empty()) {
+            return 0; // Просто первую карту
+        }
+
+        // Ищем карту, которой можно атаковать (по рангу уже лежащих на столе)
+        std::set<Card::Rank> tableRanks;
+        for (const auto& card : tableCards) {
+            tableRanks.insert(card.rank);
+        }
+
+        for (size_t i = 0; i < computerCards.size(); ++i) {
+            if (tableRanks.find(computerCards[i].rank) != tableRanks.end()) {
+                return static_cast<int>(i);
+            }
+        }
+
+        return -1; // Нет подходящей карты
+    }
+
+    // Выбор карты для защиты компьютером
+    int getComputerDefendCard(const Card& attackCard) {
+        auto& computerCards = gameTable.getComputerCards();
+        const Card& trumpCard = gameTable.getTrumpCard();
+
+        if (computerCards.empty()) return -1;
+
+        int bestCardIndex = -1;
+        int bestCardValue = INT_MAX; // Ищем минимальную подходящую карту
+
+        for (size_t i = 0; i < computerCards.size(); ++i) {
+            if (canBeatCard(attackCard, computerCards[i], trumpCard)) {
+                int value = getCardValue(computerCards[i]);
+                if (value < bestCardValue) {
+                    bestCardValue = value;
+                    bestCardIndex = static_cast<int>(i);
+                }
+            }
+        }
+
+        return bestCardIndex;
+    }
+
+    // Управление ходом игры
+
+    // Игрок атакует
+    bool playerAttack(int cardIndex) {
+        auto& playerCards = gameTable.getPlayerCards();
+        auto& tableCards = gameTable.getTableCards();
+
+        if (cardIndex < 0 || cardIndex >= static_cast<int>(playerCards.size())) {
+            return false;
+        }
+
+        // Проверяем, можно ли атаковать этой картой
+        if (tableCards.empty() || canAttackWithCard(playerCards[cardIndex])) {
+            Card attackingCard = playerCards[cardIndex];
+            attackingCard.id = cardIndex; // Сохраняем индекс для последующего удаления
+
+            tableCards.push_back(attackingCard);
+            playerCards.erase(playerCards.begin() + cardIndex);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Проверка, можно ли атаковать выбранной картой
+    bool canAttackWithCard(const Card& card) {
+        auto& tableCards = gameTable.getTableCards();
+
+        if (tableCards.empty()) return true; // Первая карта всегда может атаковать
+
+        // Проверяем, есть ли на столе карта с таким же рангом
+        for (const auto& tableCard : tableCards) {
+            if (tableCard.rank == card.rank) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Игрок защищается
+    bool playerDefend(int attackCardIndex, int defendCardIndex) {
+        auto& playerCards = gameTable.getPlayerCards();
+        auto& tableCards = gameTable.getTableCards();
+        const Card& trumpCard = gameTable.getTrumpCard();
+
+        if (attackCardIndex < 0 || attackCardIndex >= static_cast<int>(tableCards.size()) ||
+            defendCardIndex < 0 || defendCardIndex >= static_cast<int>(playerCards.size())) {
+            return false;
+        }
+
+        Card& attackCard = tableCards[attackCardIndex];
+        Card& defendCard = playerCards[defendCardIndex];
+
+        if (canBeatCard(attackCard, defendCard, trumpCard)) {
+            // Помечаем, что карта побита
+            attackCard.isFaceUp = false; // Временно используем для пометки
+            tableCards.push_back(defendCard);
+            playerCards.erase(playerCards.begin() + defendCardIndex);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    // Компьютер делает ход
+    void computerMakeMove(GameState currentState) {
+        if (currentState == GameState::COMPUTER_TURN_ATTACK) {
+            int cardIndex = getComputerAttackCard();
+            if (cardIndex != -1) {
+                // Здесь должна быть логика атаки компьютера
+                std::cout << "Компьютер атакует картой #" << cardIndex << std::endl;
+            }
+        }
+        else if (currentState == GameState::COMPUTER_TURN_DEFEND) {
+            auto& tableCards = gameTable.getTableCards();
+            if (!tableCards.empty()) {
+                // Ищем последнюю непобитую карту
+                int attackCardIndex = static_cast<int>(tableCards.size()) - 1;
+                int defendCardIndex = getComputerDefendCard(tableCards[attackCardIndex]);
+
+                if (defendCardIndex != -1) {
+                    std::cout << "Компьютер защищается картой #" << defendCardIndex << std::endl;
+                }
+            }
+        }
+    }
+
+
+    // Проверка окончания игры
+    bool isGameOver() {
+        auto& playerCards = gameTable.getPlayerCards();
+        auto& computerCards = gameTable.getComputerCards();
+
+        return playerCards.empty() || computerCards.empty();
+    }
+
+    // Определение победителя
+    std::string getWinner() {
+        auto& playerCards = gameTable.getPlayerCards();
+        auto& computerCards = gameTable.getComputerCards();
+
+        if (playerCards.empty() && computerCards.empty()) {
+            return "Ничья!";
+        }
+        else if (playerCards.empty()) {
+            return "Игрок победил!";
+        }
+        else if (computerCards.empty()) {
+            return "Компьютер победил!";
+        }
+
+        return "Игра продолжается";
+    }
+};
+
 class Game {
 private:
     GLFWwindow* window;
     GameTable gameTable;
     AudioManager audioManager;
-    KeyboardManager keyManager; // Переименовал из KeyboardManager в CardManager
+    KeyboardManager keyManager;
     ALuint backgroundMusic;
-    GameState currentState; // Добавляем состояние игры
+    GameState currentState; 
 
 public:
     Game() : window(nullptr), gameTable(), keyManager(gameTable),
@@ -660,7 +945,7 @@ private:
             break;
         }
     }
-
+    // я не уверена, стоит ли так усложнять игру, ею наверное можно просто мышкой управлять
     void handleKeyPress(int key) {
         switch (currentState) {
         case GameState::MAIN_MENU:
@@ -682,6 +967,7 @@ private:
             break;
         }
     }
+    
 
     // Методы для конкретных состояний игры
     void updateMainMenu() { // это скорее всего не понадобится 
