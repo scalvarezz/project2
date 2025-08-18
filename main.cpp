@@ -48,7 +48,6 @@ public:
     glm::vec2 position;
     int id; // Уникальный ID для идентификации
 
-    // Конструктор по умолчанию
     Card() : suit(SPADES), rank(TWO), isFaceUp(true), position(0.0f, 0.0f), id(-1) {}
 
     Card(Suit s, Rank r, int cardId) : suit(s), rank(r), isFaceUp(true), id(cardId) {
@@ -259,7 +258,7 @@ public:
     }
 
     void renderCards(const std::vector<Card>& cards) {
-        for (const auto& card : cards) { // просто проходка по всему массиву карт, если я правильно понимаю
+        for (const auto& card : cards) { // просто проходка по всему массиву карт
             renderCard(card);
         }
     }
@@ -271,46 +270,16 @@ private:
     std::vector<Card> playerCards;
     std::vector<Card> computerCards;
     std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
-    // ещё как-то надо, чтобы программа определяла, что карта действительно побита, а не просто лежит на столе, думаю о массиве списков длинной 2
-    // но звучит пиздец запарно реализовывать списки чисто для этого (хотя вроде в плюсах это делается быстро)
     Card trumpCard; // козырь
 
 public:
     // Явный конструктор по умолчанию НЕ УДАЛЯТЬ!!! по сути абсолютно бесполезен (НО В НЁМ МОЖЕТ БЫТЬ ПРОБЛЕМА!!!)
     GameTable() : cardRenderer(), playerCards(), computerCards(),
-        tableCards(), trumpCard() {
-        createTestDeck();
-    }
+        tableCards(), trumpCard() {}
     void init() {
         cardRenderer.init();
         setupInitialPositions();
     }
-
-    // Создание тестовой колоды для проверки, нахуя ?
-    void createTestDeck() {
-        // Очищаем существующие карты
-        playerCards.clear();
-        computerCards.clear();
-        tableCards.clear();
-
-        // Создаем тестовые карты игрока
-        for (int i = 0; i < 6; ++i) {
-            Card::Rank rank = static_cast<Card::Rank>(Card::TWO + (i % 13));
-            Card::Suit suit = static_cast<Card::Suit>(i % 4);
-            playerCards.emplace_back(suit, rank, i);
-        }
-
-        // Создаем тестовые карты компьютера
-        for (int i = 0; i < 6; ++i) {
-            Card::Rank rank = static_cast<Card::Rank>(Card::TWO + (i % 13));
-            Card::Suit suit = static_cast<Card::Suit>((i + 1) % 4);
-            computerCards.emplace_back(suit, rank, i + 100);
-        }
-
-        // Козырь
-        trumpCard = Card(Card::SPADES, Card::ACE, 200);
-    }
-
 
     void setupInitialPositions() {
         // карты игрока 
@@ -356,7 +325,6 @@ public:
         }
     }
 
-    // могут понадобиться для логики игры хз
     std::vector<Card>& getPlayerCards() { return playerCards; }
     std::vector<Card>& getComputerCards() { return computerCards; }
     std::vector<Card>& getTableCards() { return tableCards; }
@@ -423,11 +391,10 @@ public:
 
 class KeyboardManager {
 private:
-    GameTable& gameTable; // Ссылка на GameTable вместо дублирования векторов
+    GameTable& gameTable;
     int selectedCardIndex = -1;
 
 public:
-    // Конструктор, принимающий ссылку на GameTable
     KeyboardManager(GameTable& table) : gameTable(table), selectedCardIndex(-1) {}
 
     // Проверка, попал ли клик по карте
@@ -481,6 +448,8 @@ public:
     void clearSelection() { selectedCardIndex = -1; }
 };
 
+
+/*
 KeyboardManager keyManager;
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) { // это зачем ваще?
@@ -490,6 +459,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         keyManager.onMouseClick(xpos, ypos);
     }
 }
+*/
 
 class GameLogic {
 private:
@@ -799,13 +769,11 @@ public:
     }
 
     bool initialize() {
-        // Инициализация GLFW
         if (!glfwInit()) {
             std::cerr << "Failed to initialize GLFW" << std::endl;
             return false;
         }
 
-        // Создание окна
         window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Space Side Suicide", nullptr, nullptr);
         if (!window) {
             std::cerr << "Failed to create GLFW window" << std::endl;
@@ -815,18 +783,15 @@ public:
 
         glfwMakeContextCurrent(window);
 
-        // Инициализация GLAD
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
             std::cerr << "Failed to initialize GLAD" << std::endl;
             return false;
         }
 
-        // Настройка OpenGL
         glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-        // Sound
+        
         ALuint musicBuffer = audioManager.loadAudio("C:/try/test20072025/textures/Deep_Cover.mp3");
         if (musicBuffer == 0) {
             std::cout << "Warning: Failed to load background music" << std::endl;
@@ -837,10 +802,8 @@ public:
             audioManager.setVolume(musicSource, 0.5f);
         }
 
-        // Инициализация игровых объектов
         gameTable.init();
 
-        // Установка callback'ов
         glfwSetWindowUserPointer(window, this);
         glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
@@ -851,7 +814,6 @@ public:
             }
             });
 
-        // Установка callback для клавиатуры
         glfwSetKeyCallback(window, [](GLFWwindow* w, int key, int scancode, int action, int mods) {
             auto game = static_cast<Game*>(glfwGetWindowUserPointer(w));
             if (action == GLFW_PRESS || action == GLFW_REPEAT) {
@@ -872,7 +834,6 @@ public:
         }
     }
 
-    // Методы для управления состоянием игры
     void setState(GameState newState) {
         currentState = newState;
     }
