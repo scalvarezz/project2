@@ -48,6 +48,7 @@ public:
     glm::vec2 position;
     int id; // Уникальный ID для идентификации
 
+    // Конструктор по умолчанию
     Card() : suit(SPADES), rank(TWO), isFaceUp(true), position(0.0f, 0.0f), id(-1) {}
 
     Card(Suit s, Rank r, int cardId) : suit(s), rank(r), isFaceUp(true), id(cardId) {
@@ -155,52 +156,101 @@ public:
     }
 };
 
-class CardRenderer {
+static unsigned int compileShader(unsigned int type, const char* source) {
+    unsigned int id = glCreateShader(type);
+    glShaderSource(id, 1, &source, nullptr);
+    glCompileShader(id);
+
+    int success;
+    char infoLog[512];
+    glGetShaderiv(id, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(id, 512, nullptr, infoLog);
+        std::cout << "ERROR::SHADER::COMPILATION_FAILED\n" << infoLog << std::endl;
+    }
+
+    return id;
+}
+
+static unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource) { // эти 2 функции статиковые вроде уже должны быть рабочими
+    unsigned int vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
+    unsigned int fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
+
+    unsigned int program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+
+    int success;
+    char infoLog[512];
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+    if (!success) {
+        glGetProgramInfoLog(program, 512, nullptr, infoLog);
+        std::cout << "ERROR::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+    }
+
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return program;
+}
+
+
+class Renderer {
 private:
-    unsigned int VAO, VBO, EBO;
-    unsigned int shaderProgram;
+    unsigned int cardVAO, cardVBO, cardEBO;
+    unsigned int cardShaderProgram;
+
+    unsigned int backgroundVAO, backgroundVBO, backgroundEBO;
+    unsigned int backgroundShaderProgram;
+
+    unsigned int uiVAO, uiVBO, uiEBO;
+    unsigned int uiShaderProgram;
+
     TextureManager textureManager;
 
-    float vertices[20] = {
-        // координаты (x, y, z)    // текстурные координаты (в каком порядке мы натягиваем текстуру)
-         0.5f,  0.5f, 0.0f,  1.0f, 1.0f,  // верхний правый (правый верх текстуры)
-         0.5f, -0.5f, 0.0f,  1.0f, 0.0f,  // нижний правый (правый низ текстуры) 
-        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,  // нижний левый (левый низ текстуры)
-        -0.5f,  0.5f, 0.0f,  0.0f, 1.0f   // верхний левый (левый верх текстуры)
+    // Вершины для карт
+    float cardVertices[20] = {
+        // координаты (x, y, z)    // текстурные координаты
+         0.5f,  0.5f, 0.0f,  1.0f, 1.0f,  // верхний правый
+         0.5f, -0.5f, 0.0f,  1.0f, 0.0f,  // нижний правый 
+        -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,  // нижний левый
+        -0.5f,  0.5f, 0.0f,  0.0f, 1.0f   // верхний левый
     };
 
-    unsigned int indices[6] = {
-        0, 1, 3,   
-        1, 2, 3   
+    unsigned int cardIndices[6] = {
+        0, 1, 3,
+        1, 2, 3
     };
 
 public:
-    void init() { // надо будет разобрать точнее что тут вообще происходит (ТРОГАТЬ НЕ НАДО)
-        glGenVertexArrays(1, &VAO);
-        glGenBuffers(1, &VBO);
-        glGenBuffers(1, &EBO);
+    void init() {
+        initCardRendering();
+        initBackgroundRendering();
+        initUIRendering();
+    }
 
-        glBindVertexArray(VAO);
+private:
+    void initCardRendering() {
+        glGenVertexArrays(1, &cardVAO);
+        glGenBuffers(1, &cardVBO);
+        glGenBuffers(1, &cardEBO);
 
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+        glBindVertexArray(cardVAO);
 
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, cardVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(cardVertices), cardVertices, GL_STATIC_DRAW);
 
-        // Атрибуты вершин
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cardEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(cardIndices), cardIndices, GL_STATIC_DRAW);
+
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
         glEnableVertexAttribArray(0);
 
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
-        createShaders();
-    }
-
-    void createShaders() {
-        // Вершинный шейдер
-        const char* vertexShaderSource = R"(
+        const char* cardVertexShader = R"(
         #version 330 core
         layout (location = 0) in vec3 aPos;
         layout (location = 1) in vec2 aTexCoord;
@@ -216,8 +266,7 @@ public:
         }
         )";
 
-        // Фрагментный шейдер
-        const char* fragmentShaderSource = R"(
+        const char* cardFragmentShader = R"(
         #version 330 core
         out vec4 FragColor;
         in vec2 TexCoord;
@@ -227,25 +276,149 @@ public:
             FragColor = texture(ourTexture, TexCoord);
         }
         )";
+
+        cardShaderProgram = createShaderProgram(cardVertexShader, cardFragmentShader);
     }
 
-    void renderCard(const Card& card) { // ещё поразбирайся с этими матрицами !!!
+    void initBackgroundRendering() {
+        glGenVertexArrays(1, &backgroundVAO);
+        glGenBuffers(1, &backgroundVBO);
+        glGenBuffers(1, &backgroundEBO);
+
+        float backgroundVertices[] = {
+            -1.0f,  1.0f, 0.0f,  0.0f, 1.0f,  
+            -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  
+             1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  
+             1.0f,  1.0f, 0.0f,  1.0f, 1.0f   
+        };
+
+        unsigned int backgroundIndices[] = {
+            0, 1, 3,
+            1, 2, 3
+        };
+
+        glBindVertexArray(backgroundVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, backgroundVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(backgroundVertices), backgroundVertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, backgroundEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(backgroundIndices), backgroundIndices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        const char* backgroundVertexShader = R"(
+        #version 330 core
+        layout (location = 0) in vec3 aPos;
+        layout (location = 1) in vec2 aTexCoord;
+        out vec2 TexCoord;
+        void main()
+        {
+            gl_Position = vec4(aPos, 1.0);
+            TexCoord = aTexCoord;
+        }
+        )";
+
+        const char* backgroundFragmentShader = R"(
+        #version 330 core
+        out vec4 FragColor;
+        in vec2 TexCoord;
+        uniform sampler2D backgroundTexture;
+        void main()
+        {
+            FragColor = texture(backgroundTexture, TexCoord);
+        }
+        )";
+
+        backgroundShaderProgram = createShaderProgram(backgroundVertexShader, backgroundFragmentShader);
+    }
+
+    void initUIRendering() {
+        glGenVertexArrays(1, &uiVAO);
+        glGenBuffers(1, &uiVBO);
+        glGenBuffers(1, &uiEBO);
+
+        // Пока базовая инициализация, можно расширить позже
+        float uiVertices[] = {
+             0.5f,  0.5f, 0.0f,  1.0f, 1.0f,
+             0.5f, -0.5f, 0.0f,  1.0f, 0.0f,
+            -0.5f, -0.5f, 0.0f,  0.0f, 0.0f,
+            -0.5f,  0.5f, 0.0f,  0.0f, 1.0f
+        };
+
+        unsigned int uiIndices[] = {
+            0, 1, 3,
+            1, 2, 3
+        };
+
+        glBindVertexArray(uiVAO);
+
+        glBindBuffer(GL_ARRAY_BUFFER, uiVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(uiVertices), uiVertices, GL_STATIC_DRAW);
+
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, uiEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uiIndices), uiIndices, GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
+
+        const char* uiVertexShader = R"(
+        #version 330 core
+        layout (location = 0) in vec3 aPos;
+        layout (location = 1) in vec2 aTexCoord;
+        out vec2 TexCoord;
+        uniform mat4 model;
+        uniform mat4 projection;
+        void main()
+        {
+            gl_Position = projection * model * vec4(aPos, 1.0);
+            TexCoord = aTexCoord;
+        }
+        )";
+
+        const char* uiFragmentShader = R"(
+        #version 330 core
+        out vec4 FragColor;
+        in vec2 TexCoord;
+        uniform sampler2D uiTexture;
+        uniform vec4 color;
+        void main()
+        {
+            if (uiTexture == 0) {
+                FragColor = color;
+            } else {
+                FragColor = texture(uiTexture, TexCoord) * color;
+            }
+        }
+        )";
+
+        uiShaderProgram = createShaderProgram(uiVertexShader, uiFragmentShader);
+    }
+
+public:
+    // Рендеринг одной карты
+    void renderCard(const Card& card, float cardWidth, float cardHeight) {
         // Создание матрицы трансформации
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, glm::vec3(card.position.x, card.position.y, 0.0f));
-        model = glm::scale(model, glm::vec3(CARD_WIDTH, CARD_HEIGHT, 1.0f));
+        model = glm::scale(model, glm::vec3(cardWidth, cardHeight, 1.0f));
 
         // Матрица проекции (ортографическая)
         glm::mat4 projection = glm::ortho(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT);
 
         // Установка шейдеров
-        glUseProgram(shaderProgram);
+        glUseProgram(cardShaderProgram);
 
         // Передача матриц в шейдер
-        unsigned int modelLoc = glGetUniformLocation(shaderProgram, "model");
+        unsigned int modelLoc = glGetUniformLocation(cardShaderProgram, "model");
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 
-        unsigned int projLoc = glGetUniformLocation(shaderProgram, "projection");
+        unsigned int projLoc = glGetUniformLocation(cardShaderProgram, "projection");
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
         // Загрузка текстуры
@@ -253,20 +426,62 @@ public:
         glBindTexture(GL_TEXTURE_2D, texture);
 
         // Рендеринг
-        glBindVertexArray(VAO);
+        glBindVertexArray(cardVAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     }
 
-    void renderCards(const std::vector<Card>& cards) {
-        for (const auto& card : cards) { // просто проходка по всему массиву карт
-            renderCard(card);
+    // Рендеринг множества карт
+    void renderCards(const std::vector<Card>& cards, float cardWidth, float cardHeight) {
+        for (const auto& card : cards) {
+            renderCard(card, cardWidth, cardHeight);
         }
+    }
+
+    // Рендеринг фона
+    void renderBackground(const std::string& texturePath) {
+        unsigned int backgroundTexture = textureManager.loadTexture(texturePath);
+        if (backgroundTexture == 0) return;
+
+        glDisable(GL_DEPTH_TEST);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glUseProgram(backgroundShaderProgram);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, backgroundTexture);
+        glUniform1i(glGetUniformLocation(backgroundShaderProgram, "backgroundTexture"), 0);
+
+        glBindVertexArray(backgroundVAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        glEnable(GL_DEPTH_TEST);
+    }
+
+    // Рендеринг главного меню
+    void renderMainMenu() {
+        // Рендерим фон меню
+        renderBackground("C:/try/test20072025/textures/menu_background.jpg");
+
+        // Здесь можно добавить рендеринг текста меню, кнопок и т.д.
+        // Пока просто заглушка
+        std::cout << "Rendering main menu..." << std::endl;
+    }
+
+    // Рендеринг UI элементов
+    void renderUI(const std::string& text = "", const glm::vec2& position = glm::vec2(0, 0)) {
+        // Пока базовая реализация
+        // Можно расширить для рендеринга текста, кнопок, счетчиков и т.д.
+    }
+
+    TextureManager& getTextureManager() {
+        return textureManager;
     }
 };
 
 class GameTable {
 private:
-    CardRenderer cardRenderer;
+    Renderer renderer;
     std::vector<Card> playerCards;
     std::vector<Card> computerCards;
     std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
@@ -274,10 +489,10 @@ private:
 
 public:
     // Явный конструктор по умолчанию НЕ УДАЛЯТЬ!!! по сути абсолютно бесполезен (НО В НЁМ МОЖЕТ БЫТЬ ПРОБЛЕМА!!!)
-    GameTable() : cardRenderer(), playerCards(), computerCards(),
+    GameTable() : renderer(), playerCards(), computerCards(),
         tableCards(), trumpCard() {}
     void init() {
-        cardRenderer.init();
+        renderer.init();
         setupInitialPositions();
     }
 
@@ -314,17 +529,18 @@ public:
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        cardRenderer.renderCards(computerCards);
-        cardRenderer.renderCards(tableCards);
-        cardRenderer.renderCards(playerCards);
+        renderer.renderCards(computerCards, CARD_WIDTH, CARD_HEIGHT);
+        renderer.renderCards(tableCards, CARD_WIDTH, CARD_HEIGHT);
+        renderer.renderCards(playerCards, CARD_WIDTH, CARD_HEIGHT);
 
         if (trumpCard.suit != Card::JOKER) {
             trumpCard.position = glm::vec2(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2);
             trumpCard.isFaceUp = true;
-            cardRenderer.renderCard(trumpCard);
+            renderer.renderCard(trumpCard, CARD_WIDTH, CARD_HEIGHT);
         }
     }
 
+    // могут понадобиться для логики игры хз
     std::vector<Card>& getPlayerCards() { return playerCards; }
     std::vector<Card>& getComputerCards() { return computerCards; }
     std::vector<Card>& getTableCards() { return tableCards; }
@@ -391,10 +607,11 @@ public:
 
 class KeyboardManager {
 private:
-    GameTable& gameTable;
+    GameTable& gameTable; // Ссылка на GameTable вместо дублирования векторов
     int selectedCardIndex = -1;
 
 public:
+    // Конструктор, принимающий ссылку на GameTable
     KeyboardManager(GameTable& table) : gameTable(table), selectedCardIndex(-1) {}
 
     // Проверка, попал ли клик по карте
@@ -748,13 +965,16 @@ class Game {
 private:
     GLFWwindow* window;
     GameTable gameTable;
+    GameLogic gameLogic;
     AudioManager audioManager;
-    KeyboardManager keyManager;
+    KeyboardManager KeyManager; 
+    Renderer renderer; 
     ALuint backgroundMusic;
-    GameState currentState; 
+    GameState currentState;
 
 public:
-    Game() : window(nullptr), gameTable(), keyManager(gameTable),
+    Game() : window(nullptr), gameTable(), gameLogic(gameTable),
+        KeyManager(gameTable), renderer(),
         backgroundMusic(0), currentState(GameState::MAIN_MENU) {
     }
 
@@ -769,11 +989,13 @@ public:
     }
 
     bool initialize() {
+        // Инициализация GLFW
         if (!glfwInit()) {
             std::cerr << "Failed to initialize GLFW" << std::endl;
             return false;
         }
 
+        // Создание окна
         window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Space Side Suicide", nullptr, nullptr);
         if (!window) {
             std::cerr << "Failed to create GLFW window" << std::endl;
@@ -783,15 +1005,18 @@ public:
 
         glfwMakeContextCurrent(window);
 
+        // Инициализация GLAD
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
             std::cerr << "Failed to initialize GLAD" << std::endl;
             return false;
         }
 
+        // Настройка OpenGL
         glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        
+
+        // Sound
         ALuint musicBuffer = audioManager.loadAudio("C:/try/test20072025/textures/Deep_Cover.mp3");
         if (musicBuffer == 0) {
             std::cout << "Warning: Failed to load background music" << std::endl;
@@ -802,8 +1027,11 @@ public:
             audioManager.setVolume(musicSource, 0.5f);
         }
 
+        // Инициализация игровых объектов
+        renderer.init(); 
         gameTable.init();
 
+        // Установка callback'ов
         glfwSetWindowUserPointer(window, this);
         glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
@@ -814,20 +1042,12 @@ public:
             }
             });
 
-        glfwSetKeyCallback(window, [](GLFWwindow* w, int key, int scancode, int action, int mods) {
-            auto game = static_cast<Game*>(glfwGetWindowUserPointer(w));
-            if (action == GLFW_PRESS || action == GLFW_REPEAT) {
-                game->handleKeyPress(key);
-            }
-            });
-
         return true;
     }
 
     void run() {
         while (!glfwWindowShouldClose(window)) {
-            update();
-            render();
+            update(); // весь рендер надо будет засунуть в апдейт и связанные с ним функции
 
             glfwSwapBuffers(window);
             glfwPollEvents();
@@ -847,7 +1067,7 @@ private:
         // Обновление игрового состояния в зависимости от currentState
         switch (currentState) {
         case GameState::MAIN_MENU:
-            updateMainMenu();
+            renderer.renderMainMenu();
             break;
         case GameState::PLAYER_TURN_ATTACK:
             updatePlayerAttack();
@@ -867,35 +1087,16 @@ private:
         }
     }
 
-    void render() {
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // Рендеринг в зависимости от состояния
-        switch (currentState) {
-        case GameState::MAIN_MENU:
-            renderMainMenu();
-            break;
-        default:
-            gameTable.render();
-            renderUI();
-            break;
-        }
-    }
-
     void handleMouseClick(double xpos, double ypos) {
         switch (currentState) {
         case GameState::MAIN_MENU:
-            // Обработка кликов в меню
             handleMainMenuClick(xpos, ypos);
             break;
         case GameState::PLAYER_TURN_ATTACK:
-            // Обработка выбора карты для атаки
-            keyManager.onMouseClick(xpos, ypos);
+            KeyManager.onMouseClick(xpos, ypos);
             break;
         case GameState::PLAYER_TURN_DEFEND:
-            // Обработка выбора карты для защиты
-            keyManager.onMouseClick(xpos, ypos);
+            KeyManager.onMouseClick(xpos, ypos);
             break;
         case GameState::COMPUTER_TURN_ATTACK:
         case GameState::COMPUTER_TURN_DEFEND:
@@ -906,106 +1107,56 @@ private:
             break;
         }
     }
-    // я не уверена, стоит ли так усложнять игру, ею наверное можно просто мышкой управлять
-    void handleKeyPress(int key) {
-        switch (currentState) {
-        case GameState::MAIN_MENU:
-            if (key == GLFW_KEY_ENTER || key == GLFW_KEY_SPACE) {
-                currentState = GameState::PLAYER_TURN_ATTACK;
-            }
-            break;
-        case GameState::PLAYER_TURN_ATTACK:
-        case GameState::PLAYER_TURN_DEFEND:
-            if (key == GLFW_KEY_ESCAPE) {
-                currentState = GameState::MAIN_MENU;
-            }
-            break;
-        case GameState::GAME_OVER:
-            if (key == GLFW_KEY_R) {
-                // Перезапуск игры
-                restartGame();
-            }
-            break;
-        }
-    }
-    
-
-    // Методы для конкретных состояний игры
-    void updateMainMenu() { // это скорее всего не понадобится 
-        // Логика главного меню
-    }
 
     void updatePlayerAttack() {
-        // Логика атаки игрока
-        // Проверяем выбранную карту через cardManager
-        int selectedCard = keyManager.getSelectedCardIndex();
+        renderer.renderBackground("C:/try/test20072025/textures/table.jpg"); // такого рода, тут ещё каждая функция недописана для рендера
+        int selectedCard = KeyManager.getSelectedCardIndex();
         if (selectedCard != -1) {
-            // Обрабатываем выбор карты для атаки
-            std::cout << "Игрок атакует картой #" << selectedCard << std::endl;
-            // Здесь будет логика игры...
-            keyManager.clearSelection();
+            if (gameLogic.playerAttack(selectedCard)) {
+                std::cout << "Игрок атакует картой #" << selectedCard << std::endl;
+                currentState = GameState::COMPUTER_TURN_DEFEND;
+            }
+            KeyManager.clearSelection();
         }
     }
 
     void updatePlayerDefend() {
-        // Логика защиты игрока
-        int selectedCard = keyManager.getSelectedCardIndex();
+        int selectedCard = KeyManager.getSelectedCardIndex();
         if (selectedCard != -1) {
-            // Обрабатываем выбор карты для защиты
-            std::cout << "Игрок защищается картой #" << selectedCard << std::endl;
-            // Здесь будет логика игры...
-            keyManager.clearSelection();
+            auto& tableCards = gameTable.getTableCards();
+            if (!tableCards.empty()) {
+                int attackCardIndex = static_cast<int>(tableCards.size()) - 1;
+                if (gameLogic.playerDefend(attackCardIndex, selectedCard)) {
+                    std::cout << "Игрок защищается картой #" << selectedCard << std::endl;
+                    currentState = GameState::COMPUTER_TURN_ATTACK;
+                }
+            }
+            KeyManager.clearSelection();
         }
     }
 
     void updateComputerAttack() {
-        // Логика атаки компьютера
-        // После завершения хода компьютера меняем состояние
-        // currentState = GameState::PLAYER_TURN_DEFEND;
+        gameLogic.computerMakeMove(GameState::COMPUTER_TURN_ATTACK);
+        currentState = GameState::PLAYER_TURN_DEFEND;
     }
 
     void updateComputerDefend() {
-        // Логика защиты компьютера
-        // После завершения хода компьютера меняем состояние
-        // currentState = GameState::PLAYER_TURN_ATTACK;
+        gameLogic.computerMakeMove(GameState::COMPUTER_TURN_DEFEND);
+        currentState = GameState::PLAYER_TURN_ATTACK;
     }
 
     void updateGameOver() {
         // Логика конца игры
-    }
-
-    void renderMainMenu() {
-        // Рендеринг главного меню
-        std::cout << "Отображение главного меню" << std::endl;
-        // Здесь будет рендеринг меню
-    }
-
-    void renderUI() {
-        // Рендеринг интерфейса (кнопки, текст и т.д.)
-        switch (currentState) {
-        case GameState::PLAYER_TURN_ATTACK:
-            std::cout << "Ход игрока: атака" << std::endl;
-            break;
-        case GameState::PLAYER_TURN_DEFEND:
-            std::cout << "Ход игрока: защита" << std::endl;
-            break;
-        case GameState::COMPUTER_TURN_ATTACK:
-            std::cout << "Ход компьютера: атака" << std::endl;
-            break;
-        case GameState::COMPUTER_TURN_DEFEND:
-            std::cout << "Ход компьютера: защита" << std::endl;
-            break;
+        if (gameLogic.isGameOver()) {
+            std::cout << gameLogic.getWinner() << std::endl;
         }
     }
 
     void handleMainMenuClick(double xpos, double ypos) {
-        // Обработка кликов в главном меню
-        // Пока просто переход в игру
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
 
     void restartGame() {
-        // Перезапуск игры
         gameTable = GameTable();
         gameTable.init();
         currentState = GameState::MAIN_MENU;
