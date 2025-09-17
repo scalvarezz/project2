@@ -211,7 +211,10 @@ private:
     unsigned int cardShaderProgram;
     unsigned int backgroundVAO, backgroundVBO, backgroundEBO;
     unsigned int backgroundShaderProgram;
+    unsigned int beatButtonTexture;
     TextureManager textureManager;
+    glm::vec2 beatButtonPosition;
+    glm::vec2 beatButtonSize;
 
     float cardVertices[20] = {
         // pos(x,y,z)     // tex coords
@@ -227,6 +230,55 @@ public:
     void init() {
         initCardRendering();
         initBackgroundRendering();
+        initBeatButton();
+    }
+
+    void initBeatButton() {
+        beatButtonPosition = glm::vec2(WINDOW_WIDTH - 150.0f, 50.0f);
+        beatButtonSize = glm::vec2(120.0f, 60.0f);
+        beatButtonTexture = textureManager.loadTexture("C:/textures/beat_button.png");
+
+        // Если текстура не загрузилась, используем текстуру карты
+        if (beatButtonTexture == 0) {
+            beatButtonTexture = textureManager.loadTexture("C:/textures/card_back.jpg");
+        }
+    }
+
+    void renderBeatButton(bool isVisible) {
+        if (!isVisible) return;
+
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(
+            beatButtonPosition.x + beatButtonSize.x / 2,
+            beatButtonPosition.y + beatButtonSize.y / 2,
+            0.0f
+        ));
+        model = glm::scale(model, glm::vec3(beatButtonSize.x, beatButtonSize.y, 1.0f));
+
+        glUseProgram(cardShaderProgram);
+
+        glm::mat4 projection = glm::ortho(
+            0.0f, static_cast<float>(WINDOW_WIDTH),
+            0.0f, static_cast<float>(WINDOW_HEIGHT),
+            -1.0f, 1.0f
+        );
+
+        unsigned int modelLoc = glGetUniformLocation(cardShaderProgram, "model");
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
+        unsigned int projLoc = glGetUniformLocation(cardShaderProgram, "projection");
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+        glBindTexture(GL_TEXTURE_2D, beatButtonTexture);
+        glBindVertexArray(cardVAO);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+    }
+
+    bool isBeatButtonClicked(float x, float y) const {
+        return x >= beatButtonPosition.x &&
+            x <= beatButtonPosition.x + beatButtonSize.x &&
+            y >= beatButtonPosition.y &&
+            y <= beatButtonPosition.y + beatButtonSize.y;
     }
 
 private:
@@ -754,6 +806,38 @@ public:
         }
     }
 
+    void refillHand(std::vector<Card>& hand) {
+        while (hand.size() < 6 && !Deck.empty()) {
+            hand.push_back(Deck.back());
+            Deck.pop_back();
+        }
+    }
+
+    void processBeat() {
+        tableCards.clear();
+        refillHand(playerCards);
+        refillHand(computerCards);
+    }
+
+    void processTakeAll() {
+        playerCards.insert(playerCards.end(), tableCards.begin(), tableCards.end());
+        tableCards.clear();
+        refillHand(playerCards);
+        refillHand(computerCards);
+    }
+
+    bool canBeatCurrentAttack() {
+        if (tableCards.empty()) return true;
+
+        Card attackCard = tableCards.back();
+        for (const auto& card : playerCards) {
+            if (canBeatCard(attackCard, card, trumpCard)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Логика битвы карт
 
     // Проверка, можно ли побить карту attackCard картой defendCard
@@ -1134,9 +1218,10 @@ private:
     AudioManager audioManager;
     MouseManager mouseManager;
     GameState currentState;
+    bool beatButtonVisible;
 
 public:
-    Game() : window(nullptr), currentState(GameState::START_GAME) {}
+    Game() : window(nullptr), beatButtonVisible(false), currentState(GameState::START_GAME) {}
 
     bool initialize() {
         if (!glfwInit()) return false;
@@ -1187,6 +1272,7 @@ public:
 private:
     void update() {
         // Обновление игрового состояния в зависимости от currentState
+        beatButtonVisible = (currentState == GameState::PLAYER_TURN_DEFEND);
         switch (currentState) {
         case GameState::START_GAME:
             updatestartgame();
@@ -1216,6 +1302,14 @@ private:
             break;
         case GameState::PLAYER_TURN_DEFEND:
             mouseManager.onMouseClick(xpos, ypos);
+            float gameY = WINDOW_HEIGHT - ypos;
+
+            if (beatButtonVisible && renderer.isBeatButtonClicked(xpos, gameY)) {
+                onBeatButtonClicked();
+            }
+            else {
+                mouseManager.onMouseClick(xpos, gameY);
+            }
             break;
         case GameState::COMPUTER_TURN_ATTACK:
         case GameState::COMPUTER_TURN_DEFEND:
@@ -1225,6 +1319,21 @@ private:
             // Обработка кликов в конце игры
             break;
         }
+    }
+
+    void onBeatButtonClicked() {
+        if (gameLogic.canBeatCurrentAttack()) {
+            gameLogic.processBeat();
+            std::cout << "Бито! Стол очищен." << std::endl;
+        }
+        else {
+            gameLogic.processTakeAll();
+            std::cout << "Игрок забрал карты со стола." << std::endl;
+        }
+
+        // Позиции карт автоматически обновятся при следующем рендере
+        // в функции updatePlayerAttack/updatePlayerDefend через gameTable.render()
+        currentState = GameState::COMPUTER_TURN_ATTACK;
     }
 
     void updatePlayerAttack() {
