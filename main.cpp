@@ -16,8 +16,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-const int WINDOW_WIDTH = 1024;
-const int WINDOW_HEIGHT = 768;
+
+const float WINDOW_WIDTH = 1024.0f;
+const float WINDOW_HEIGHT = 768.0f;
 
 const float CARD_WIDTH = 80.0f;
 const float CARD_HEIGHT = 120.0f;
@@ -57,7 +58,7 @@ public:
 
     std::string getTextureName() const {
         if (!isFaceUp) {
-            return "C:/try/test20072025/textures/card_back.jpg";
+            return "C:/textures/card_back.jpg";
         }
 
         std::string suitStr;
@@ -77,15 +78,15 @@ public:
         else if (rank == JOKER_RANK) rankStr = "Communism";
         // else rankStr = std::to_string(rank);  пидорас
 
-        return "C:/try/test20072025/textures/" + rankStr + "_" + suitStr + ".png"; // джокеры пока названы так, что эта штука их не найдёт
+        return "C:/textures/" + rankStr + "_of_" + suitStr + ".png"; // джокеры пока названы так, что эта штука их не найдёт
     }
 };
 
 enum class GameState {
-    MAIN_MENU = 0,
+    START_GAME = 0,
     PLAYER_TURN_ATTACK = 1,
     PLAYER_TURN_DEFEND = 2,
-    COMPUTER_TURN_ATTACK = 3, 
+    COMPUTER_TURN_ATTACK = 3,
     COMPUTER_TURN_DEFEND = 4,
     GAME_OVER = 5
 };
@@ -286,10 +287,10 @@ private:
         glGenBuffers(1, &backgroundEBO);
 
         float backgroundVertices[] = {
-            -1.0f,  1.0f, 0.0f,  0.0f, 1.0f,  
-            -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  
-             1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  
-             1.0f,  1.0f, 0.0f,  1.0f, 1.0f   
+            -1.0f,  1.0f, 0.0f,  0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f,  0.0f, 0.0f,
+             1.0f, -1.0f, 0.0f,  1.0f, 0.0f,
+             1.0f,  1.0f, 0.0f,  1.0f, 1.0f
         };
 
         unsigned int backgroundIndices[] = {
@@ -461,11 +462,12 @@ public:
     // Рендеринг главного меню
     void renderMainMenu() {
         // Рендерим фон меню
-        renderBackground("C:/try/test20072025/textures/menu_background.jpg");
+        renderBackground("C:/textures/table.jpg");
 
         // Здесь можно добавить рендеринг текста меню, кнопок и т.д.
         // Пока просто заглушка
         std::cout << "Rendering main menu..." << std::endl;
+        return;
     }
 
     // Рендеринг UI элементов
@@ -477,79 +479,6 @@ public:
     TextureManager& getTextureManager() {
         return textureManager;
     }
-};
-
-class GameTable {
-private:
-    Renderer renderer;
-    std::vector<Card> playerCards;
-    std::vector<Card> computerCards;
-    std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
-    Card trumpCard; // козырь
-
-public:
-    // Явный конструктор по умолчанию НЕ УДАЛЯТЬ!!! по сути абсолютно бесполезен (НО В НЁМ МОЖЕТ БЫТЬ ПРОБЛЕМА!!!)
-    GameTable() : renderer(), playerCards(), computerCards(),
-        tableCards(), trumpCard() {}
-    void init() {
-        renderer.init();
-        setupInitialPositions();
-    }
-
-    void setupInitialPositions() {
-        // карты игрока 
-        float startX = (WINDOW_WIDTH - 5 * CARD_WIDTH) / 2.0f; // центрируем 5 карт по ширине окна
-        float y = 50.0f; // 50 пикселей от нижнего края В ПИКСЕЛЯХ ИЗ-ЗА glm::mat4 projection = glm::ortho(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT);
-        // эта штука создает матрицу проекции, которая преобразует пиксели в OpenGL коорды [-1, 1] 
-
-        for (int i = 0; i < playerCards.size() && i < 6; ++i) {
-            playerCards[i].position = glm::vec2(startX + i * CARD_WIDTH, y);
-            playerCards[i].isFaceUp = true;
-        }
-
-        y = WINDOW_HEIGHT - 50.0f - CARD_HEIGHT;
-        for (int i = 0; i < computerCards.size() && i < 6; ++i) {
-            computerCards[i].position = glm::vec2(startX + i * CARD_WIDTH, y);
-            computerCards[i].isFaceUp = false; 
-        }
-
-        // карты на столе
-        startX = (WINDOW_WIDTH - 3 * CARD_WIDTH) / 2.0f;
-        y = WINDOW_HEIGHT / 2.0f - CARD_HEIGHT / 2.0f;
-
-        for (int i = 0; i < tableCards.size() && i < 8; ++i) {
-            int row = i / 4;
-            int col = i % 4;
-            tableCards[i].position = glm::vec2(startX + col * CARD_WIDTH, y - row * (CARD_HEIGHT + 10));
-            tableCards[i].isFaceUp = true;
-        }
-    }
-
-    void render() {
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        renderer.renderCards(computerCards, CARD_WIDTH, CARD_HEIGHT);
-        renderer.renderCards(tableCards, CARD_WIDTH, CARD_HEIGHT);
-        renderer.renderCards(playerCards, CARD_WIDTH, CARD_HEIGHT);
-
-        if (trumpCard.suit != Card::JOKER) {
-            trumpCard.position = glm::vec2(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2);
-            trumpCard.isFaceUp = true;
-            renderer.renderCard(trumpCard, CARD_WIDTH, CARD_HEIGHT);
-        }
-    }
-
-    // могут понадобиться для логики игры хз
-    std::vector<Card>& getPlayerCards() { return playerCards; }
-    std::vector<Card>& getComputerCards() { return computerCards; }
-    std::vector<Card>& getTableCards() { return tableCards; }
-    Card& getTrumpCard() { return trumpCard; }
-
-    void setPlayerCards(const std::vector<Card>& cards) { playerCards = cards; }
-    void setComputerCards(const std::vector<Card>& cards) { computerCards = cards; }
-    void setTableCards(const std::vector<Card>& cards) { tableCards = cards; }
-    void setTrumpCard(const Card& card) { trumpCard = card; }
 };
 
 class AudioManager { // идентичный старому проекту, работает 
@@ -605,137 +534,65 @@ public:
     };
 };
 
-class KeyboardManager {
-private:
-    GameTable& gameTable; // Ссылка на GameTable вместо дублирования векторов
-    int selectedCardIndex = -1;
-
-public:
-    // Конструктор, принимающий ссылку на GameTable
-    KeyboardManager(GameTable& table) : gameTable(table), selectedCardIndex(-1) {}
-
-    // Проверка, попал ли клик по карте
-    int getCardAtPosition(double xpos, double ypos) {
-        // ypos от верхнего левого угла -> в нижний левый
-        ypos = WINDOW_HEIGHT - ypos;
-
-        // Получаем карты игрока из GameTable
-        std::vector<Card>& playerCards = gameTable.getPlayerCards();
-        // Проверяем карты игрока (в порядке справа налево, чтобы верхние карты проверялись первыми)
-        for (int i = playerCards.size() - 1; i >= 0; --i) {
-            if (i >= 6) continue;
-
-            const Card& card = playerCards[i];
-
-            if (xpos >= card.position.x &&
-                xpos <= card.position.x + CARD_WIDTH &&
-                ypos >= card.position.y &&
-                ypos <= card.position.y + CARD_HEIGHT) {
-                return i; // Возвращаем индекс найденной карты
-            }
-        }
-
-        return -1;
-    }
-
-    void onMouseClick(double xpos, double ypos) {
-        int clickedCardIndex = getCardAtPosition(xpos, ypos);
-        if (clickedCardIndex != -1) {
-            std::cout << "Клик по карте #" << clickedCardIndex << std::endl;
-            selectedCardIndex = clickedCardIndex;
-            onCardSelected(clickedCardIndex);
-        }
-        else {
-            selectedCardIndex = -1;
-            std::cout << "Клик мимо карт" << std::endl;
-        }
-    }
-
-    void onCardSelected(int cardIndex) {
-        // Получаем карту из GameTable
-        std::vector<Card>& playerCards = gameTable.getPlayerCards();
-        if (cardIndex >= 0 && cardIndex < static_cast<int>(playerCards.size())) {
-            std::cout << "Выбрана карта: " << playerCards[cardIndex].getTextureName() << std::endl;
-        }
-    }
-    // Метод для получения выбранной карты
-    int getSelectedCardIndex() const { return selectedCardIndex; }
-
-    // Метод для сброса выбора
-    void clearSelection() { selectedCardIndex = -1; }
-};
-
-
-/*
-KeyboardManager keyManager;
-
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) { // это зачем ваще?
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        double xpos, ypos;
-        glfwGetCursorPos(window, &xpos, &ypos);
-        keyManager.onMouseClick(xpos, ypos);
-    }
-}
-*/
-
 class GameLogic {
 private:
-    GameTable& gameTable;
     std::mt19937 rng; // Генератор случайных чисел
+    std::vector<Card> Deck;
+    std::vector<Card> playerCards;
+    std::vector<Card> computerCards;
+    std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
+    Card trumpCard; // козырь
 
 public:
-    GameLogic(GameTable& table) : gameTable(table), rng(std::random_device{}()) {}
+    GameLogic() : rng(std::random_device{}()) {}
 
     // Создание полной колоды карт
     std::vector<Card> createFullDeck() {
-        std::vector<Card> deck;
         int id = 0;
 
         // Создаем стандартные карты (без джокеров)
         for (int suit = 0; suit < 4; ++suit) {
             for (int rank = 0; rank < 6; ++rank) { // TWO до ACE
-                deck.emplace_back(static_cast<Card::Suit>(suit),
+                Deck.emplace_back(static_cast<Card::Suit>(suit),
                     static_cast<Card::Rank>(rank), id++);
             }
         }
 
         // Добавляем джокеров
-        deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
-        deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
+        Deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
+        Deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
 
-        return deck;
+        return Deck;
     }
 
     // Перемешивание колоды
-    void shuffleDeck(std::vector<Card>& deck) {
-        std::shuffle(deck.begin(), deck.end(), rng);
+    void shuffleDeck(std::vector<Card>& Deck) {
+        std::shuffle(Deck.begin(), Deck.end(), rng);
     }
 
     // Раздача карт
-    void dealCards(std::vector<Card>& deck) {
-        auto& playerCards = gameTable.getPlayerCards();
-        auto& computerCards = gameTable.getComputerCards();
+    void dealCards(std::vector<Card>& Deck) {
 
         playerCards.clear();
         computerCards.clear();
 
         // Раздаем по 6 карт каждому
         for (int i = 0; i < 6; ++i) {
-            if (!deck.empty()) {
-                playerCards.push_back(deck.back());
-                deck.pop_back();
+            if (!Deck.empty()) {
+                playerCards.push_back(Deck.back());
+                Deck.pop_back();
             }
-            if (!deck.empty()) {
-                computerCards.push_back(deck.back());
-                deck.pop_back();
+            if (!Deck.empty()) {
+                computerCards.push_back(Deck.back());
+                Deck.pop_back();
             }
         }
 
         // Определяем козырь
-        if (!deck.empty()) {
-            Card trump = deck.back();
-            deck.pop_back();
-            gameTable.setTrumpCard(trump);
+        if (!Deck.empty()) {
+            Card trump = Deck.back();
+            Deck.pop_back();
+            trumpCard = trump;
         }
     }
 
@@ -795,8 +652,6 @@ public:
 
     // Выбор карты для атаки компьютером
     int getComputerAttackCard() {
-        auto& computerCards = gameTable.getComputerCards();
-        auto& tableCards = gameTable.getTableCards();
 
         if (computerCards.empty()) return -1;
 
@@ -822,8 +677,6 @@ public:
 
     // Выбор карты для защиты компьютером
     int getComputerDefendCard(const Card& attackCard) {
-        auto& computerCards = gameTable.getComputerCards();
-        const Card& trumpCard = gameTable.getTrumpCard();
 
         if (computerCards.empty()) return -1;
 
@@ -847,8 +700,6 @@ public:
 
     // Игрок атакует
     bool playerAttack(int cardIndex) {
-        auto& playerCards = gameTable.getPlayerCards();
-        auto& tableCards = gameTable.getTableCards();
 
         if (cardIndex < 0 || cardIndex >= static_cast<int>(playerCards.size())) {
             return false;
@@ -870,7 +721,6 @@ public:
 
     // Проверка, можно ли атаковать выбранной картой
     bool canAttackWithCard(const Card& card) {
-        auto& tableCards = gameTable.getTableCards();
 
         if (tableCards.empty()) return true; // Первая карта всегда может атаковать
 
@@ -886,9 +736,6 @@ public:
 
     // Игрок защищается
     bool playerDefend(int attackCardIndex, int defendCardIndex) {
-        auto& playerCards = gameTable.getPlayerCards();
-        auto& tableCards = gameTable.getTableCards();
-        const Card& trumpCard = gameTable.getTrumpCard();
 
         if (attackCardIndex < 0 || attackCardIndex >= static_cast<int>(tableCards.size()) ||
             defendCardIndex < 0 || defendCardIndex >= static_cast<int>(playerCards.size())) {
@@ -916,18 +763,17 @@ public:
             int cardIndex = getComputerAttackCard();
             if (cardIndex != -1) {
                 // Здесь должна быть логика атаки компьютера
-                std::cout << "Компьютер атакует картой #" << cardIndex << std::endl;
+                std::cout << "Computer attacks with #" << cardIndex << std::endl;
             }
         }
         else if (currentState == GameState::COMPUTER_TURN_DEFEND) {
-            auto& tableCards = gameTable.getTableCards();
             if (!tableCards.empty()) {
                 // Ищем последнюю непобитую карту
                 int attackCardIndex = static_cast<int>(tableCards.size()) - 1;
                 int defendCardIndex = getComputerDefendCard(tableCards[attackCardIndex]);
 
                 if (defendCardIndex != -1) {
-                    std::cout << "Компьютер защищается картой #" << defendCardIndex << std::endl;
+                    std::cout << "Computer defends with #" << defendCardIndex << std::endl;
                 }
             }
         }
@@ -936,16 +782,11 @@ public:
 
     // Проверка окончания игры
     bool isGameOver() {
-        auto& playerCards = gameTable.getPlayerCards();
-        auto& computerCards = gameTable.getComputerCards();
-
         return playerCards.empty() || computerCards.empty();
     }
 
     // Определение победителя
     std::string getWinner() {
-        auto& playerCards = gameTable.getPlayerCards();
-        auto& computerCards = gameTable.getComputerCards();
 
         if (playerCards.empty() && computerCards.empty()) {
             return "Ничья!";
@@ -959,6 +800,139 @@ public:
 
         return "Игра продолжается";
     }
+
+    std::vector<Card>& getPlayerCards() { return playerCards; }
+    std::vector<Card>& getDeck() { return Deck; }
+    std::vector<Card>& getComputerCards() { return computerCards; }
+    std::vector<Card>& getTableCards() { return tableCards; }
+    Card& getTrumpCard() { return trumpCard; }
+    int getsize(std::vector<Card>& vec) { return vec.size(); }
+
+
+    void setPlayerCards(const std::vector<Card>& cards) { playerCards = cards; }
+    void setComputerCards(const std::vector<Card>& cards) { computerCards = cards; }
+    void setTableCards(const std::vector<Card>& cards) { tableCards = cards; }
+    void setTrumpCard(const Card& card) { trumpCard = card; }
+
+};
+
+class MouseManager {
+private:
+    GameLogic gameLogic; // Ссылка на GameTable вместо дублирования векторов
+    int selectedCardIndex = -1;
+
+public:
+    // Конструктор, принимающий ссылку на GameTable
+    MouseManager() : gameLogic(), selectedCardIndex(-1) {}
+
+    // Проверка, попал ли клик по карте
+    int getCardAtPosition(double xpos, double ypos) {
+        // ypos от верхнего левого угла -> в нижний левый
+        ypos = WINDOW_HEIGHT - ypos;
+
+        // Получаем карты игрока из GameTable
+        std::vector<Card>& playerCards = gameLogic.getPlayerCards();
+        // Проверяем карты игрока (в порядке справа налево, чтобы верхние карты проверялись первыми)
+        for (int i = playerCards.size() - 1; i >= 0; --i) {
+            if (i >= 6) continue;
+
+            const Card& card = playerCards[i];
+
+            if (xpos >= card.position.x &&
+                xpos <= card.position.x + CARD_WIDTH &&
+                ypos >= card.position.y &&
+                ypos <= card.position.y + CARD_HEIGHT) {
+                return i; // Возвращаем индекс найденной карты
+            }
+        }
+
+        return -1;
+    }
+
+    void onMouseClick(double xpos, double ypos) {
+        int clickedCardIndex = getCardAtPosition(xpos, ypos);
+        if (clickedCardIndex != -1) {
+            std::cout << "Click on card #" << clickedCardIndex << std::endl;
+            selectedCardIndex = clickedCardIndex;
+            onCardSelected(clickedCardIndex);
+        }
+        else {
+            selectedCardIndex = -1;
+            std::cout << "Not on card click" << std::endl;
+        }
+    }
+
+    void onCardSelected(int cardIndex) {
+        // Получаем карту из GameTable
+        std::vector<Card>& playerCards = gameLogic.getPlayerCards();
+        if (cardIndex >= 0 && cardIndex < static_cast<int>(playerCards.size())) {
+            std::cout << "Chosen card: " << playerCards[cardIndex].getTextureName() << std::endl;
+        }
+    }
+    // Метод для получения выбранной карты
+    int getSelectedCardIndex() const { return selectedCardIndex; }
+
+    // Метод для сброса выбора
+    void clearSelection() { selectedCardIndex = -1; }
+};
+
+class GameTable {
+private:
+    GameLogic gameLogic;
+    Renderer renderer;
+
+public:
+    // Явный конструктор по умолчанию НЕ УДАЛЯТЬ!!! по сути абсолютно бесполезен (НО В НЁМ МОЖЕТ БЫТЬ ПРОБЛЕМА!!!)
+    GameTable() : renderer(), gameLogic() {
+    }
+    void init() {
+        renderer.init();
+        setupInitialPositions();
+    }
+
+    void setupInitialPositions() {
+        // карты игрока 
+        float startX = (WINDOW_WIDTH - 5 * CARD_WIDTH) / 2.0f; // центрируем 5 карт по ширине окна
+        float y = 50.0f; // 50 пикселей от нижнего края В ПИКСЕЛЯХ ИЗ-ЗА glm::mat4 projection = glm::ortho(0.0f, (float)WINDOW_WIDTH, 0.0f, (float)WINDOW_HEIGHT);
+        // эта штука создает матрицу проекции, которая преобразует пиксели в OpenGL коорды [-1, 1] 
+
+        for (int i = 0; i < gameLogic.getsize(gameLogic.getPlayerCards()) && i < 6; ++i) {
+            gameLogic.getPlayerCards()[i].position = glm::vec2(startX + i * CARD_WIDTH, y);
+            gameLogic.getPlayerCards()[i].isFaceUp = true;
+        }
+
+        y = WINDOW_HEIGHT - 50.0f - CARD_HEIGHT;
+        for (int i = 0; i < gameLogic.getsize(gameLogic.getComputerCards()) && i < 6; ++i) {
+            gameLogic.getComputerCards()[i].position = glm::vec2(startX + i * CARD_WIDTH, y);
+            gameLogic.getComputerCards()[i].isFaceUp = false;
+        }
+
+        // карты на столе
+        startX = (WINDOW_WIDTH - 3 * CARD_WIDTH) / 2.0f;
+        y = WINDOW_HEIGHT / 2.0f - CARD_HEIGHT / 2.0f;
+
+        for (int i = 0; i < gameLogic.getsize(gameLogic.getTableCards()) && i < 8; ++i) {
+            int row = i / 4;
+            int col = i % 4;
+            gameLogic.getTableCards()[i].position = glm::vec2(startX + col * CARD_WIDTH, y - row * (CARD_HEIGHT + 10));
+            gameLogic.getTableCards()[i].isFaceUp = true;
+        }
+    }
+
+    void render() {
+        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        renderer.renderCards(gameLogic.getComputerCards(), CARD_WIDTH, CARD_HEIGHT);
+        renderer.renderCards(gameLogic.getTableCards(), CARD_WIDTH, CARD_HEIGHT);
+        renderer.renderCards(gameLogic.getPlayerCards(), CARD_WIDTH, CARD_HEIGHT);
+
+        if (gameLogic.getTrumpCard().suit != Card::JOKER) {
+            gameLogic.getTrumpCard().position = glm::vec2(WINDOW_WIDTH - 100, WINDOW_HEIGHT / 2);
+            gameLogic.getTrumpCard().isFaceUp = true;
+            renderer.renderCard(gameLogic.getTrumpCard(), CARD_WIDTH, CARD_HEIGHT);
+        }
+    }
 };
 
 class Game {
@@ -967,15 +941,15 @@ private:
     GameTable gameTable;
     GameLogic gameLogic;
     AudioManager audioManager;
-    KeyboardManager KeyManager; 
-    Renderer renderer; 
+    MouseManager mouseManager;
+    Renderer renderer;
     ALuint backgroundMusic;
     GameState currentState;
 
 public:
-    Game() : window(nullptr), gameTable(), gameLogic(gameTable),
-        KeyManager(gameTable), renderer(),
-        backgroundMusic(0), currentState(GameState::MAIN_MENU) {
+    Game() : window(nullptr), gameTable(), gameLogic(),
+        mouseManager(), renderer(),
+        backgroundMusic(0), currentState(GameState::START_GAME) {
     }
 
     ~Game() {
@@ -1017,7 +991,7 @@ public:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         // Sound
-        ALuint musicBuffer = audioManager.loadAudio("C:/try/test20072025/textures/Deep_Cover.mp3");
+        ALuint musicBuffer = audioManager.loadAudio("C:/textures/Deep_Cover.mp3");
         if (musicBuffer == 0) {
             std::cout << "Warning: Failed to load background music" << std::endl;
         }
@@ -1028,7 +1002,7 @@ public:
         }
 
         // Инициализация игровых объектов
-        renderer.init(); 
+        renderer.init();
         gameTable.init();
 
         // Установка callback'ов
@@ -1047,8 +1021,11 @@ public:
 
     void run() {
         while (!glfwWindowShouldClose(window)) {
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+            auto game = static_cast<Game*>(glfwGetWindowUserPointer(window));
             update(); // весь рендер надо будет засунуть в апдейт и связанные с ним функции
-
+            handleMouseClick(xpos, ypos);
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
@@ -1066,7 +1043,7 @@ private:
     void update() {
         // Обновление игрового состояния в зависимости от currentState
         switch (currentState) {
-        case GameState::MAIN_MENU:
+        case GameState::START_GAME:
             renderer.renderMainMenu();
             break;
         case GameState::PLAYER_TURN_ATTACK:
@@ -1089,14 +1066,14 @@ private:
 
     void handleMouseClick(double xpos, double ypos) {
         switch (currentState) {
-        case GameState::MAIN_MENU:
-            handleMainMenuClick(xpos, ypos);
+        case GameState::START_GAME:
+            handleStartGameClick(xpos, ypos);
             break;
         case GameState::PLAYER_TURN_ATTACK:
-            KeyManager.onMouseClick(xpos, ypos);
+            mouseManager.onMouseClick(xpos, ypos);
             break;
         case GameState::PLAYER_TURN_DEFEND:
-            KeyManager.onMouseClick(xpos, ypos);
+            mouseManager.onMouseClick(xpos, ypos);
             break;
         case GameState::COMPUTER_TURN_ATTACK:
         case GameState::COMPUTER_TURN_DEFEND:
@@ -1109,29 +1086,29 @@ private:
     }
 
     void updatePlayerAttack() {
-        renderer.renderBackground("C:/try/test20072025/textures/table.jpg"); // такого рода, тут ещё каждая функция недописана для рендера
-        int selectedCard = KeyManager.getSelectedCardIndex();
+        gameTable.render();
+        int selectedCard = mouseManager.getSelectedCardIndex();
         if (selectedCard != -1) {
             if (gameLogic.playerAttack(selectedCard)) {
-                std::cout << "Игрок атакует картой #" << selectedCard << std::endl;
+                std::cout << "Player attacks with card #" << selectedCard << std::endl;
                 currentState = GameState::COMPUTER_TURN_DEFEND;
             }
-            KeyManager.clearSelection();
+            mouseManager.clearSelection();
         }
     }
 
     void updatePlayerDefend() {
-        int selectedCard = KeyManager.getSelectedCardIndex();
+        int selectedCard = mouseManager.getSelectedCardIndex();
         if (selectedCard != -1) {
-            auto& tableCards = gameTable.getTableCards();
+            auto& tableCards = gameLogic.getTableCards();
             if (!tableCards.empty()) {
                 int attackCardIndex = static_cast<int>(tableCards.size()) - 1;
                 if (gameLogic.playerDefend(attackCardIndex, selectedCard)) {
-                    std::cout << "Игрок защищается картой #" << selectedCard << std::endl;
+                    std::cout << "Player defends with card #" << selectedCard << std::endl;
                     currentState = GameState::COMPUTER_TURN_ATTACK;
                 }
             }
-            KeyManager.clearSelection();
+            mouseManager.clearSelection();
         }
     }
 
@@ -1152,14 +1129,18 @@ private:
         }
     }
 
-    void handleMainMenuClick(double xpos, double ypos) {
+    void handleStartGameClick(double xpos, double ypos) {
+        std::cout << "sbdsuisdhf;uf;usdhf;isdufh" << std::endl;
+        gameLogic.createFullDeck();
+        gameLogic.shuffleDeck(gameLogic.getDeck());
+        gameLogic.dealCards(gameLogic.getDeck());
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
 
     void restartGame() {
         gameTable = GameTable();
         gameTable.init();
-        currentState = GameState::MAIN_MENU;
+        currentState = GameState::PLAYER_TURN_ATTACK;
     }
 };
 
