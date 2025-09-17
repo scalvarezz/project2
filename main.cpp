@@ -34,7 +34,8 @@ public:
         HEARTS = 1,         // Ракеты - армия - черви
         DIAMONDS = 2,       // Звёзды - пропаганда - бубны
         CLUBS = 3,          // Астероиды - разрушение - трефы
-        JOKER = 4        // Коммунизм - джокер - для обозначения его цвета, но тут ещё надо подумать, как это сделать не так по-уебански
+        BLACK = 4,
+        RED = 5
     };
 
     enum Rank {
@@ -70,17 +71,20 @@ public:
         else if (suit == HEARTS) suitStr = "hearts";
         else if (suit == DIAMONDS) suitStr = "diamonds";
         else if (suit == CLUBS) suitStr = "clubs";
-        else if (suit == JOKER) suitStr = "joker";
 
         std::string rankStr;
         if (rank == TWO) rankStr = "2";
         else if (rank == TEN) rankStr = "10";
-        else if (rank == JACK) rankStr = "J";
-        else if (rank == QUEEN)  rankStr = "Q";
-        else if (rank == KING) rankStr = "K";
-        else if (rank == ACE) rankStr = "A";
-        else if (rank == JOKER_RANK) rankStr = "Communism";
-        // else rankStr = std::to_string(rank);  пидорас
+        else if (rank == JACK) rankStr = "jack";
+        else if (rank == QUEEN)  rankStr = "queen";
+        else if (rank == KING) rankStr = "king";
+        else if (rank == ACE) rankStr = "ace";
+        else if (rank == JOKER_RANK) {
+            rankStr = "joker";
+            if (suit == BLACK) suitStr = "black";
+            if (suit == RED) suitStr = "red";
+        }
+
 
         return "C:/textures/" + rankStr + "_of_" + suitStr + ".png"; // джокеры пока названы так, что эта штука их не найдёт
     }
@@ -343,8 +347,7 @@ public:
     }
 
     void renderCards(const std::vector<Card>& cards, const glm::mat4& projection) {
-        std::cout << "cards[i].suit <<  << cards[i].rank" << std::endl;
-        for (int i = 0; i < cards.size(); i++) {
+        for (int i = 0; i < cards.size(); ++i) {
             renderCard(cards[i], projection);
         }
     }
@@ -698,7 +701,8 @@ private:
 
 public:
     GameLogic() : rng(std::random_device{}()), Deck(), playerCards(),
-        computerCards(), tableCards(), trumpCard(), aiMutex(){}
+        computerCards(), tableCards(), trumpCard(), aiMutex() {
+    }
 
     // Создание полной колоды карт
     std::vector<Card> createFullDeck() {
@@ -713,8 +717,8 @@ public:
         }
 
         // Добавляем джокеров
-        Deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
-        Deck.emplace_back(Card::JOKER, Card::JOKER_RANK, id++);
+        Deck.emplace_back(Card::BLACK, Card::JOKER_RANK, id++);
+        Deck.emplace_back(Card::RED, Card::JOKER_RANK, id++);
 
         return Deck;
     }
@@ -1039,7 +1043,6 @@ public:
 
 class GameTable {
 private:
-    GameLogic gameLogic;
     Renderer renderer;
     glm::mat4 projectionMatrix;
 
@@ -1055,57 +1058,54 @@ public:
 
     void init() {
         renderer.init();
-        setupInitialPositions();
     }
 
-    void setupInitialPositions() {
+    void render(std::vector<Card> playercards, std::vector<Card> computercards, std::vector<Card> tablecards, Card trump) {
         float startX = (WINDOW_WIDTH - 6 * CARD_WIDTH) / 2.0f;
 
         // Карты игрока (низ экрана)
         float playerY = 50.0f;
-        for (int i = 0; i < gameLogic.getPlayerCards().size() && i < 6; ++i) {
-            gameLogic.getPlayerCards()[i].position = glm::vec2(
+        for (int i = 0; i < playercards.size() && i < 6; ++i) {
+            playercards[i].position = glm::vec2(
                 startX + i * CARD_WIDTH,
                 playerY
             );
-            gameLogic.getPlayerCards()[i].isFaceUp = true;
+            playercards[i].isFaceUp = true;
         }
 
         // Карты компьютера (верх экрана)
         float computerY = WINDOW_HEIGHT - 50.0f - CARD_HEIGHT;
-        for (int i = 0; i < gameLogic.getComputerCards().size() && i < 6; ++i) {
-            gameLogic.getComputerCards()[i].position = glm::vec2(
+        for (int i = 0; i < computercards.size() && i < 6; ++i) {
+            computercards[i].position = glm::vec2(
                 startX + i * CARD_WIDTH,
                 computerY
             );
-            gameLogic.getComputerCards()[i].isFaceUp = false;
+            computercards[i].isFaceUp = false;
         }
 
         // Карты на столе (центр)
         float tableStartX = (WINDOW_WIDTH - 4 * CARD_WIDTH) / 2.0f;
         float tableY = WINDOW_HEIGHT / 2.0f - CARD_HEIGHT / 2.0f;
 
-        for (int i = 0; i < gameLogic.getTableCards().size() && i < 8; ++i) {
+        for (int i = 0; i < tablecards.size() && i < 8; ++i) {
             int row = i / 4;
             int col = i % 4;
-            gameLogic.getTableCards()[i].position = glm::vec2(
+            tablecards[i].position = glm::vec2(
                 tableStartX + col * CARD_WIDTH,
                 tableY - row * (CARD_HEIGHT + 10)
             );
-            gameLogic.getTableCards()[i].isFaceUp = true;
+            tablecards[i].isFaceUp = true;
         }
 
         // Козырь
-        if (gameLogic.getTrumpCard().suit != Card::JOKER) {
-            gameLogic.getTrumpCard().position = glm::vec2(
+        if (trump.rank != Card::JOKER_RANK) {
+            trump.position = glm::vec2(
                 WINDOW_WIDTH - CARD_WIDTH - 20,
                 WINDOW_HEIGHT / 2 - CARD_HEIGHT / 2
             );
-            gameLogic.getTrumpCard().isFaceUp = true;
+            trump.isFaceUp = true;
         }
-    }
 
-    void render() {
         // Очищаем экран
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -1114,17 +1114,14 @@ public:
         renderer.renderBackground("C:/textures/table.jpg");
 
         // Рендерим все карты с общей матрицей проекции
-        renderer.renderCards(gameLogic.getTableCards(), projectionMatrix);
-        renderer.renderCards(gameLogic.getPlayerCards(), projectionMatrix);
+        renderer.renderCards(tablecards, projectionMatrix);
+        renderer.renderCards(playercards, projectionMatrix);
 
         // Рендерим козырь отдельно, если нужно
-        if (gameLogic.getTrumpCard().suit != Card::JOKER) {
-            renderer.renderCard(gameLogic.getTrumpCard(), projectionMatrix);
+        if (trump.rank != Card::JOKER_RANK) {
+            renderer.renderCard(trump, projectionMatrix);
         }
     }
-
-    // Геттеры для доступа к логике игры
-    GameLogic& getGameLogic() { return gameLogic; }
 };
 
 
@@ -1231,7 +1228,7 @@ private:
     }
 
     void updatePlayerAttack() {
-        gameTable.render();
+        gameTable.render(gameLogic.getPlayerCards(), gameLogic.getComputerCards(), gameLogic.getTableCards(), gameLogic.getTrumpCard());
         int selectedCard = mouseManager.getSelectedCardIndex();
         if (selectedCard != -1) {
             if (gameLogic.playerAttack(selectedCard)) {
@@ -1298,14 +1295,12 @@ private:
         gameLogic.createFullDeck();
         gameLogic.shuffleDeck(gameLogic.getDeck());
         gameLogic.dealCards(gameLogic.getDeck());
-        gameTable.render();
-        int x;
-        std::cin >> x;
+        gameTable.render(gameLogic.getPlayerCards(), gameLogic.getComputerCards(), gameLogic.getTableCards(), gameLogic.getTrumpCard());
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
 
     void restartGame() {
-        GameTable gameTable;
+        gameTable = GameTable();
         gameTable.init();
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
