@@ -13,6 +13,10 @@
 #include <cstdlib>
 #include <set>
 #include <random>
+#include <thread>
+#include <mutex>
+#include <future>
+#include <algorithm>
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -418,9 +422,283 @@ private:
     std::vector<Card> computerCards;
     std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
     Card trumpCard; // козырь
+    std::mutex aiMutex;
+
+
+    // Простой расчет без многопоточности
+    int calculateSimpleAIMove(bool isAttackTurn) {
+        if (isAttackTurn) {
+            return findBestAttackCard();
+        }
+        else {
+            return findBestDefenseCard();
+        }
+    }
+
+    // Многопоточный расчет
+    int calculateMultiThreadAIMove(bool isAttackTurn, int numThreads) {
+        std::vector<std::future<int>> futures;
+        std::vector<int> results;
+
+        if (isAttackTurn) {
+            // Для атаки: каждый поток ищет лучшую карту для атаки
+            int cardsPerThread = std::max(1, (int)computerCards.size() / numThreads);
+
+            for (int i = 0; i < numThreads; ++i) {
+                int startIdx = i * cardsPerThread;
+                int endIdx = std::min((i + 1) * cardsPerThread, (int)computerCards.size());
+
+                if (startIdx >= endIdx) break;
+
+                futures.push_back(std::async(std::launch::async, [this, startIdx, endIdx]() {
+                    return findBestAttackCardInRange(startIdx, endIdx);
+                    }));
+            }
+        }
+        else {
+            // Для защиты: анализируем разные стратегии защиты
+            futures.push_back(std::async(std::launch::async, [this]() {
+                return findMinimalDefenseCard(); // Минимальная карта для отбоя
+                }));
+
+            futures.push_back(std::async(std::launch::async, [this]() {
+                return findStrategicDefenseCard(); // Стратегическая карта
+                }));
+        }
+
+        // Собираем результаты
+        for (auto& future : futures) {
+            int result = future.get();
+            if (result != -1) {
+                results.push_back(result);
+            }
+        }
+
+        if (results.empty()) return -1;
+
+        // Выбираем лучший результат на основе эвристики
+        return selectBestMove(results, isAttackTurn);
+    }
+
+    int findBestAttackCard() {
+        int bestCardIndex = -1;
+        int bestScore = INT_MIN;
+
+        for (int i = 0; i < computerCards.size(); ++i) {
+            if (canAttackWithCard(computerCards[i])) {
+                int score = evaluateAttackCard(computerCards[i], i);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCardIndex = i;
+                }
+            }
+        }
+
+        return bestCardIndex;
+    }
+
+    int findBestAttackCardInRange(int startIdx, int endIdx) {
+        int bestCardIndex = -1;
+        int bestScore = INT_MIN;
+
+        for (int i = startIdx; i < endIdx; ++i) {
+            if (canAttackWithCard(computerCards[i])) {
+                int score = evaluateAttackCard(computerCards[i], i);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCardIndex = i;
+                }
+            }
+        }
+
+        return bestCardIndex;
+    }
+
+    int findBestDefenseCard() {
+        if (tableCards.empty()) return -1;
+
+        Card attackCard = tableCards.back();
+        int bestCardIndex = -1;
+        int bestScore = INT_MIN;
+
+        for (int i = 0; i < computerCards.size(); ++i) {
+            if (canBeatCard(attackCard, computerCards[i], trumpCard)) {
+                int score = evaluateDefenseCard(computerCards[i], attackCard, i);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCardIndex = i;
+                }
+            }
+        }
+
+        return bestCardIndex;
+    }
+
+    int findMinimalDefenseCard() {
+        if (tableCards.empty()) return -1;
+
+        Card attackCard = tableCards.back();
+        int bestCardIndex = -1;
+        int minValue = INT_MAX;
+
+        for (int i = 0; i < computerCards.size(); ++i) {
+            if (canBeatCard(attackCard, computerCards[i], trumpCard)) {
+                int value = getCardValue(computerCards[i]);
+                if (value < minValue) {
+                    minValue = value;
+                    bestCardIndex = i;
+                }
+            }
+        }
+
+        return bestCardIndex;
+    }
+
+    int findStrategicDefenseCard() {
+        if (tableCards.empty()) return -1;
+
+        Card attackCard = tableCards.back();
+        int bestCardIndex = -1;
+        int bestScore = INT_MIN;
+
+        for (int i = 0; i < computerCards.size(); ++i) {
+            if (canBeatCard(attackCard, computerCards[i], trumpCard)) {
+                int score = evaluateStrategicDefense(computerCards[i], attackCard, i);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCardIndex = i;
+                }
+            }
+        }
+
+        return bestCardIndex;
+    }
+
+    int evaluateAttackCard(const Card& card, int index) {
+        int score = 0;
+
+        // Предпочтение сброса ненужных карт
+        score -= getCardValue(card) * 2; // Чем слабее карта, тем лучше
+
+        // Бонус за сброс некозырных карт
+        if (card.suit != trumpCard.suit) {
+            score += 50;
+        }
+
+        // Штраф за использование козыря в атаке
+        if (card.suit == trumpCard.suit) {
+            score -= 30;
+        }
+
+        // Учет возможности подкидывания
+        if (canCardBeUsedForAdding(card)) {
+            score += 20;
+        }
+
+        return score;
+    }
+
+    int evaluateDefenseCard(const Card& card, const Card& attackCard, int index) {
+        int score = 0;
+
+        // Предпочтение минимальной карты для отбоя
+        score -= getCardValue(card) * 3;
+
+        // Штраф за использование козыря если есть альтернатива
+        if (card.suit == trumpCard.suit && hasNonTrumpAlternative(attackCard)) {
+            score -= 40;
+        }
+
+        // Бонус за использование козыря если это необходимо
+        if (card.suit == trumpCard.suit && !hasNonTrumpAlternative(attackCard)) {
+            score += 30;
+        }
+
+        // Сохранение сильных карт
+        if (getCardValue(card) > 10) {
+            score -= 25;
+        }
+
+        return score;
+    }
+
+    int evaluateStrategicDefense(const Card& card, const Card& attackCard, int index) {
+        int score = 0;
+
+        // Стратегическое сохранение карт
+        score -= getCardValue(card); // Использовать weaker cards
+
+        // Избегание использования козыря без необходимости
+        if (card.suit == trumpCard.suit && hasNonTrumpAlternative(attackCard)) {
+            score -= 100;
+        }
+
+        // Предпочтение карт той же масти что и атака
+        if (card.suit == attackCard.suit) {
+            score += 20;
+        }
+
+        return score;
+    }
+
+    int selectBestMove(const std::vector<int>& candidateIndices, bool isAttackTurn) {
+        if (candidateIndices.empty()) return -1;
+        if (candidateIndices.size() == 1) return candidateIndices[0];
+
+        // Для атаки выбираем карту с наименьшей ценностью
+        if (isAttackTurn) {
+            int bestIndex = candidateIndices[0];
+            int minValue = getCardValue(computerCards[bestIndex]);
+
+            for (int i = 1; i < candidateIndices.size(); ++i) {
+                int value = getCardValue(computerCards[candidateIndices[i]]);
+                if (value < minValue) {
+                    minValue = value;
+                    bestIndex = candidateIndices[i];
+                }
+            }
+            return bestIndex;
+        }
+
+        // Для защиты выбираем карту с оптимальным балансом
+        int bestIndex = candidateIndices[0];
+        int bestScore = evaluateDefenseCard(computerCards[bestIndex], tableCards.back(), bestIndex);
+
+        for (int i = 1; i < candidateIndices.size(); ++i) {
+            int score = evaluateDefenseCard(computerCards[candidateIndices[i]], tableCards.back(), candidateIndices[i]);
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = candidateIndices[i];
+            }
+        }
+
+        return bestIndex;
+    }
+
+    bool hasNonTrumpAlternative(const Card& attackCard) {
+        for (const auto& card : computerCards) {
+            if (card.suit != trumpCard.suit &&
+                canBeatCard(attackCard, card, trumpCard)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool canCardBeUsedForAdding(const Card& card) {
+        // Проверяем, можно ли этой картой подкинуть на существующие карты на столе
+        for (const auto& tableCard : tableCards) {
+            if (tableCard.rank == card.rank) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
 public:
-    GameLogic() : rng(std::random_device{}()) {}
+    GameLogic() : rng(std::random_device{}()), Deck(), playerCards(),
+        computerCards(), tableCards(), trumpCard(), aiMutex(){}
 
     // Создание полной колоды карт
     std::vector<Card> createFullDeck() {
@@ -521,10 +799,6 @@ public:
         default: return 1;
         }
     }
-
-    // ========================================================================================
-    // Логика ИИ компьютера ТУТ НАДО ПРИКРУТИТЬ ПАРАЛЛЕЛИЗМА ОБЯЗАТЕЛЬНО!!!!!!!!!!!!!!!!!!!!!!!
-    // ========================================================================================
 
     // Выбор карты для атаки компьютером
     int getComputerAttackCard() {
@@ -675,6 +949,17 @@ public:
         }
 
         return "Игра продолжается";
+    }
+
+    int calculateAIMove(bool isAttackTurn, int numThreads = 2) {
+        if (computerCards.empty()) return -1;
+
+        // Если один поток или мало карт - используем простой расчет
+        if (numThreads <= 1 || computerCards.size() <= 2) {
+            return calculateSimpleAIMove(isAttackTurn);
+        }
+
+        return calculateMultiThreadAIMove(isAttackTurn, numThreads);
     }
 
     std::vector<Card>& getPlayerCards() { return playerCards; }
@@ -973,12 +1258,32 @@ private:
     }
 
     void updateComputerAttack() {
-        gameLogic.computerMakeMove(GameState::COMPUTER_TURN_ATTACK);
+        int cardIndex = gameLogic.calculateAIMove(true, 2); // 2 потока для атаки
+
+        if (cardIndex != -1) {
+            Card attackingCard = gameLogic.getComputerCards()[cardIndex];
+            gameLogic.getTableCards().push_back(attackingCard);
+            gameLogic.getComputerCards().erase(gameLogic.getComputerCards().begin() + cardIndex);
+            std::cout << "Computer attacks with card #" << cardIndex << std::endl;
+        }
+
         currentState = GameState::PLAYER_TURN_DEFEND;
     }
 
     void updateComputerDefend() {
-        gameLogic.computerMakeMove(GameState::COMPUTER_TURN_DEFEND);
+        int cardIndex = gameLogic.calculateAIMove(false, 2); // 2 потока для защиты
+
+        if (cardIndex != -1) {
+            Card& attackCard = gameLogic.getTableCards().back();
+            Card defendCard = gameLogic.getComputerCards()[cardIndex];
+
+            attackCard.isFaceUp = false;
+            gameLogic.getTableCards().push_back(defendCard);
+            gameLogic.getComputerCards().erase(gameLogic.getComputerCards().begin() + cardIndex);
+
+            std::cout << "Computer defends with card #" << cardIndex << std::endl;
+        }
+
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
 
@@ -1000,7 +1305,7 @@ private:
     }
 
     void restartGame() {
-        gameTable = GameTable();
+        GameTable gameTable;
         gameTable.init();
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
