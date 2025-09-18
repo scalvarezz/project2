@@ -113,6 +113,7 @@ public:
     }
 
     unsigned int loadTexture(const std::string& filename) {
+        stbi_set_flip_vertically_on_load(true);
         // Проверяем, загружена ли уже текстура
         if (textures.find(filename) != textures.end()) {
             return textures[filename];
@@ -211,10 +212,7 @@ private:
     unsigned int cardShaderProgram;
     unsigned int backgroundVAO, backgroundVBO, backgroundEBO;
     unsigned int backgroundShaderProgram;
-    unsigned int beatButtonTexture;
     TextureManager textureManager;
-    glm::vec2 beatButtonPosition;
-    glm::vec2 beatButtonSize;
 
     float cardVertices[20] = {
         // pos(x,y,z)     // tex coords
@@ -230,55 +228,6 @@ public:
     void init() {
         initCardRendering();
         initBackgroundRendering();
-        initBeatButton();
-    }
-
-    void initBeatButton() {
-        beatButtonPosition = glm::vec2(WINDOW_WIDTH - 150.0f, 50.0f);
-        beatButtonSize = glm::vec2(120.0f, 60.0f);
-        beatButtonTexture = textureManager.loadTexture("C:/textures/beat_button.png");
-
-        // Если текстура не загрузилась, используем текстуру карты
-        if (beatButtonTexture == 0) {
-            beatButtonTexture = textureManager.loadTexture("C:/textures/card_back.jpg");
-        }
-    }
-
-    void renderBeatButton(bool isVisible) {
-        if (!isVisible) return;
-
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(
-            beatButtonPosition.x + beatButtonSize.x / 2,
-            beatButtonPosition.y + beatButtonSize.y / 2,
-            0.0f
-        ));
-        model = glm::scale(model, glm::vec3(beatButtonSize.x, beatButtonSize.y, 1.0f));
-
-        glUseProgram(cardShaderProgram);
-
-        glm::mat4 projection = glm::ortho(
-            0.0f, static_cast<float>(WINDOW_WIDTH),
-            0.0f, static_cast<float>(WINDOW_HEIGHT),
-            -1.0f, 1.0f
-        );
-
-        unsigned int modelLoc = glGetUniformLocation(cardShaderProgram, "model");
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-
-        unsigned int projLoc = glGetUniformLocation(cardShaderProgram, "projection");
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        glBindTexture(GL_TEXTURE_2D, beatButtonTexture);
-        glBindVertexArray(cardVAO);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-    }
-
-    bool isBeatButtonClicked(float x, float y) const {
-        return x >= beatButtonPosition.x &&
-            x <= beatButtonPosition.x + beatButtonSize.x &&
-            y >= beatButtonPosition.y &&
-            y <= beatButtonPosition.y + beatButtonSize.y;
     }
 
 private:
@@ -781,7 +730,7 @@ public:
     }
 
     // Раздача карт
-    void dealCards(std::vector<Card>& Deck) {
+    void firstdealCards(std::vector<Card>& Deck) {
 
         playerCards.clear();
         computerCards.clear();
@@ -800,42 +749,32 @@ public:
 
         // Определяем козырь
         if (!Deck.empty()) {
+            while (Deck.back().rank == 6)
+                shuffleDeck(Deck);
             Card trump = Deck.back();
             Deck.pop_back();
             trumpCard = trump;
         }
     }
 
-    void refillHand(std::vector<Card>& hand) {
-        while (hand.size() < 6 && !Deck.empty()) {
-            hand.push_back(Deck.back());
+    void dealCards(std::vector<Card>& Deck) {
+
+        while (playerCards.size() < 6 && computerCards.size() < 6 && !Deck.empty()) {
+            playerCards.push_back(Deck.back());
+            Deck.pop_back();
+            computerCards.push_back(Deck.back());
             Deck.pop_back();
         }
-    }
 
-    void processBeat() {
-        tableCards.clear();
-        refillHand(playerCards);
-        refillHand(computerCards);
-    }
-
-    void processTakeAll() {
-        playerCards.insert(playerCards.end(), tableCards.begin(), tableCards.end());
-        tableCards.clear();
-        refillHand(playerCards);
-        refillHand(computerCards);
-    }
-
-    bool canBeatCurrentAttack() {
-        if (tableCards.empty()) return true;
-
-        Card attackCard = tableCards.back();
-        for (const auto& card : playerCards) {
-            if (canBeatCard(attackCard, card, trumpCard)) {
-                return true;
-            }
+        while (playerCards.size() < 6 && !Deck.empty()) {
+            playerCards.push_back(Deck.back());
+            Deck.pop_back();
         }
-        return false;
+
+        while (computerCards.size() < 6 && !Deck.empty()) {
+            computerCards.push_back(Deck.back());
+            Deck.pop_back();
+        }
     }
 
     // Логика битвы карт
@@ -886,52 +825,6 @@ public:
         case Card::ACE: return 14;
         default: return 1;
         }
-    }
-
-    // Выбор карты для атаки компьютером
-    int getComputerAttackCard() {
-
-        if (computerCards.empty()) return -1;
-
-        // Если стол пуст - атакуем любой картой
-        if (tableCards.empty()) {
-            return 0; // Просто первую карту
-        }
-
-        // Ищем карту, которой можно атаковать (по рангу уже лежащих на столе)
-        std::set<Card::Rank> tableRanks;
-        for (const auto& card : tableCards) {
-            tableRanks.insert(card.rank);
-        }
-
-        for (size_t i = 0; i < computerCards.size(); ++i) {
-            if (tableRanks.find(computerCards[i].rank) != tableRanks.end()) {
-                return static_cast<int>(i);
-            }
-        }
-
-        return -1; // Нет подходящей карты
-    }
-
-    // Выбор карты для защиты компьютером
-    int getComputerDefendCard(const Card& attackCard) {
-
-        if (computerCards.empty()) return -1;
-
-        int bestCardIndex = -1;
-        int bestCardValue = INT_MAX; // Ищем минимальную подходящую карту
-
-        for (size_t i = 0; i < computerCards.size(); ++i) {
-            if (canBeatCard(attackCard, computerCards[i], trumpCard)) {
-                int value = getCardValue(computerCards[i]);
-                if (value < bestCardValue) {
-                    bestCardValue = value;
-                    bestCardIndex = static_cast<int>(i);
-                }
-            }
-        }
-
-        return bestCardIndex;
     }
 
     // Управление ходом игры
@@ -995,28 +888,6 @@ public:
         return false;
     }
 
-    // Компьютер делает ход
-    void computerMakeMove(GameState currentState) {
-        if (currentState == GameState::COMPUTER_TURN_ATTACK) {
-            int cardIndex = getComputerAttackCard();
-            if (cardIndex != -1) {
-                // Здесь должна быть логика атаки компьютера
-                std::cout << "Computer attacks with #" << cardIndex << std::endl;
-            }
-        }
-        else if (currentState == GameState::COMPUTER_TURN_DEFEND) {
-            if (!tableCards.empty()) {
-                // Ищем последнюю непобитую карту
-                int attackCardIndex = static_cast<int>(tableCards.size()) - 1;
-                int defendCardIndex = getComputerDefendCard(tableCards[attackCardIndex]);
-
-                if (defendCardIndex != -1) {
-                    std::cout << "Computer defends with #" << defendCardIndex << std::endl;
-                }
-            }
-        }
-    }
-
 
     // Проверка окончания игры
     bool isGameOver() {
@@ -1049,6 +920,25 @@ public:
 
         return calculateMultiThreadAIMove(isAttackTurn, numThreads);
     }
+    
+    void computergettablecards() {
+        while (tableCards.size() > 0) {
+            computerCards.push_back(tableCards.back());
+            tableCards.pop_back();
+        }
+    }
+
+    void playergettablecards() {
+        while (tableCards.size() > 0) {
+            playerCards.push_back(tableCards.back());
+            tableCards.pop_back();
+        }
+    }
+
+    void freetablecards() {
+        while (tableCards.size() > 0)
+            tableCards.pop_back();
+    }
 
     std::vector<Card>& getPlayerCards() { return playerCards; }
     std::vector<Card>& getDeck() { return Deck; }
@@ -1067,25 +957,21 @@ public:
 
 class MouseManager {
 private:
-    GameLogic gameLogic; // Ссылка на GameTable вместо дублирования векторов
     int selectedCardIndex = -1;
-
 public:
     // Конструктор, принимающий ссылку на GameTable
-    MouseManager() : gameLogic(), selectedCardIndex(-1) {}
+    MouseManager() : selectedCardIndex(-1) {}
 
     // Проверка, попал ли клик по карте
-    int getCardAtPosition(double xpos, double ypos) {
+    int getCardAtPosition(double xpos, double ypos, std::vector<Card> playercards) {
         // ypos от верхнего левого угла -> в нижний левый
         ypos = WINDOW_HEIGHT - ypos;
 
-        // Получаем карты игрока из GameTable
-        std::vector<Card>& playerCards = gameLogic.getPlayerCards();
         // Проверяем карты игрока (в порядке справа налево, чтобы верхние карты проверялись первыми)
-        for (int i = playerCards.size() - 1; i >= 0; --i) {
+        for (int i = playercards.size() - 1; i >= 0; --i) {
             if (i >= 6) continue;
 
-            const Card& card = playerCards[i];
+            const Card& card = playercards[i];
 
             if (xpos >= card.position.x &&
                 xpos <= card.position.x + CARD_WIDTH &&
@@ -1094,28 +980,46 @@ public:
                 return i; // Возвращаем индекс найденной карты
             }
         }
+        
+        
+        
+            if (xpos >= 0.0f && xpos <= 100.0f &&
+               ypos >= 0.0f && ypos <= 100.0f) {
+               return -2;
+            }
+        
+        
+            if (WINDOW_WIDTH - xpos >= 0.0f && WINDOW_WIDTH - xpos <= 100.0f && WINDOW_HEIGHT - ypos >= 0.0f && WINDOW_HEIGHT - ypos <= 100.0f) {
+                return -3;
+            }
 
         return -1;
     }
 
-    void onMouseClick(double xpos, double ypos) {
-        int clickedCardIndex = getCardAtPosition(xpos, ypos);
-        if (clickedCardIndex != -1) {
+    void onMouseClick(double xpos, double ypos, std::vector<Card> playercards) {
+        int clickedCardIndex = getCardAtPosition(xpos, ypos, playercards);
+        if (clickedCardIndex >= 0) {
             std::cout << "Click on card #" << clickedCardIndex << std::endl;
             selectedCardIndex = clickedCardIndex;
-            onCardSelected(clickedCardIndex);
+            onCardSelected(clickedCardIndex, playercards);
+        }
+        else if (clickedCardIndex == -2) {
+            selectedCardIndex = -2;
+            std::cout << "Move end" << std::endl;
+        }
+        else if (clickedCardIndex == -3) {
+            selectedCardIndex = -3;
+            std::cout << "Move end" << std::endl;
         }
         else {
             selectedCardIndex = -1;
-            std::cout << "Not on card click" << std::endl;
+            std::cout << "Not on card click " << xpos << " " << ypos << std::endl;
         }
     }
 
-    void onCardSelected(int cardIndex) {
-        // Получаем карту из GameTable
-        std::vector<Card>& playerCards = gameLogic.getPlayerCards();
-        if (cardIndex >= 0 && cardIndex < static_cast<int>(playerCards.size())) {
-            std::cout << "Chosen card: " << playerCards[cardIndex].getTextureName() << std::endl;
+    void onCardSelected(int cardIndex, std::vector<Card> playercards) {
+        if (cardIndex >= 0 && cardIndex < static_cast<int>(playercards.size())) {
+            std::cout << "Chosen card: " << playercards[cardIndex].getTextureName() << std::endl;
         }
     }
     // Метод для получения выбранной карты
@@ -1144,12 +1048,12 @@ public:
         renderer.init();
     }
 
-    void render(std::vector<Card> playercards, std::vector<Card> computercards, std::vector<Card> tablecards, Card trump) {
-        float startX = (WINDOW_WIDTH - 6 * CARD_WIDTH) / 2.0f;
+    void render(std::vector<Card>& playercards, std::vector<Card>& computercards, std::vector<Card>& tablecards, Card& trump) {
+        float startX = (WINDOW_WIDTH - playercards.size() * CARD_WIDTH) / 2.0f;
 
         // Карты игрока (низ экрана)
         float playerY = 50.0f;
-        for (int i = 0; i < playercards.size() && i < 6; ++i) {
+        for (int i = 0; i < playercards.size(); ++i) {
             playercards[i].position = glm::vec2(
                 startX + i * CARD_WIDTH,
                 playerY
@@ -1157,9 +1061,10 @@ public:
             playercards[i].isFaceUp = true;
         }
 
+        startX = (WINDOW_WIDTH - computercards.size() * CARD_WIDTH) / 2.0f;
         // Карты компьютера (верх экрана)
         float computerY = WINDOW_HEIGHT - 50.0f - CARD_HEIGHT;
-        for (int i = 0; i < computercards.size() && i < 6; ++i) {
+        for (int i = 0; i < computercards.size(); ++i) {
             computercards[i].position = glm::vec2(
                 startX + i * CARD_WIDTH,
                 computerY
@@ -1198,6 +1103,7 @@ public:
         renderer.renderBackground("C:/textures/table.jpg");
 
         // Рендерим все карты с общей матрицей проекции
+        renderer.renderCards(computercards, projectionMatrix);
         renderer.renderCards(tablecards, projectionMatrix);
         renderer.renderCards(playercards, projectionMatrix);
 
@@ -1218,12 +1124,12 @@ private:
     AudioManager audioManager;
     MouseManager mouseManager;
     GameState currentState;
-    bool beatButtonVisible;
 
 public:
-    Game() : window(nullptr), beatButtonVisible(false), currentState(GameState::START_GAME) {}
+    Game() : window(nullptr), currentState(GameState::START_GAME) {}
 
     bool initialize() {
+        audioManager.playAudio(audioManager.loadAudio("C:/textures/Deep_Cover.mp3"));
         if (!glfwInit()) return false;
 
         window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Card Game", nullptr, nullptr);
@@ -1272,7 +1178,6 @@ public:
 private:
     void update() {
         // Обновление игрового состояния в зависимости от currentState
-        beatButtonVisible = (currentState == GameState::PLAYER_TURN_DEFEND);
         switch (currentState) {
         case GameState::START_GAME:
             updatestartgame();
@@ -1298,59 +1203,42 @@ private:
     void handleMouseClick(double xpos, double ypos) {
         switch (currentState) {
         case GameState::PLAYER_TURN_ATTACK:
-            mouseManager.onMouseClick(xpos, ypos);
+            mouseManager.onMouseClick(xpos, ypos, gameLogic.getPlayerCards());
             break;
         case GameState::PLAYER_TURN_DEFEND:
-            mouseManager.onMouseClick(xpos, ypos);
-            float gameY = WINDOW_HEIGHT - ypos;
-
-            if (beatButtonVisible && renderer.isBeatButtonClicked(xpos, gameY)) {
-                onBeatButtonClicked();
-            }
-            else {
-                mouseManager.onMouseClick(xpos, gameY);
-            }
+            mouseManager.onMouseClick(xpos, ypos, gameLogic.getPlayerCards());
             break;
         case GameState::COMPUTER_TURN_ATTACK:
+            break;
         case GameState::COMPUTER_TURN_DEFEND:
-            // Возможно, обработка кликов во время хода компьютера
             break;
         case GameState::GAME_OVER:
-            // Обработка кликов в конце игры
             break;
         }
-    }
-
-    void onBeatButtonClicked() {
-        if (gameLogic.canBeatCurrentAttack()) {
-            gameLogic.processBeat();
-            std::cout << "Бито! Стол очищен." << std::endl;
-        }
-        else {
-            gameLogic.processTakeAll();
-            std::cout << "Игрок забрал карты со стола." << std::endl;
-        }
-
-        // Позиции карт автоматически обновятся при следующем рендере
-        // в функции updatePlayerAttack/updatePlayerDefend через gameTable.render()
-        currentState = GameState::COMPUTER_TURN_ATTACK;
     }
 
     void updatePlayerAttack() {
         gameTable.render(gameLogic.getPlayerCards(), gameLogic.getComputerCards(), gameLogic.getTableCards(), gameLogic.getTrumpCard());
         int selectedCard = mouseManager.getSelectedCardIndex();
-        if (selectedCard != -1) {
+        if (selectedCard >= 0) {
             if (gameLogic.playerAttack(selectedCard)) {
                 std::cout << "Player attacks with card #" << selectedCard << std::endl;
                 currentState = GameState::COMPUTER_TURN_DEFEND;
             }
             mouseManager.clearSelection();
         }
+        else if (selectedCard == -2) {
+            gameLogic.freetablecards();
+            gameLogic.dealCards(gameLogic.getDeck());
+            currentState = GameState::COMPUTER_TURN_ATTACK;
+            std::cout << "Player end move" << std::endl;
+        }
     }
 
     void updatePlayerDefend() {
+        gameTable.render(gameLogic.getPlayerCards(), gameLogic.getComputerCards(), gameLogic.getTableCards(), gameLogic.getTrumpCard());
         int selectedCard = mouseManager.getSelectedCardIndex();
-        if (selectedCard != -1) {
+        if (selectedCard >= 0) {
             auto& tableCards = gameLogic.getTableCards();
             if (!tableCards.empty()) {
                 int attackCardIndex = static_cast<int>(tableCards.size()) - 1;
@@ -1361,19 +1249,29 @@ private:
             }
             mouseManager.clearSelection();
         }
+        else if (selectedCard == -3) {
+            gameLogic.playergettablecards();
+            gameLogic.dealCards(gameLogic.getDeck());
+            std::cout << "Player end move" << std::endl;
+            currentState = GameState::COMPUTER_TURN_ATTACK;
+        }
     }
 
     void updateComputerAttack() {
         int cardIndex = gameLogic.calculateAIMove(true, 2); // 2 потока для атаки
-
         if (cardIndex != -1) {
             Card attackingCard = gameLogic.getComputerCards()[cardIndex];
             gameLogic.getTableCards().push_back(attackingCard);
             gameLogic.getComputerCards().erase(gameLogic.getComputerCards().begin() + cardIndex);
             std::cout << "Computer attacks with card #" << cardIndex << std::endl;
+            currentState = GameState::PLAYER_TURN_DEFEND;
         }
-
-        currentState = GameState::PLAYER_TURN_DEFEND;
+        else {
+            gameLogic.dealCards(gameLogic.getDeck());
+            gameLogic.freetablecards();
+            currentState = GameState::PLAYER_TURN_ATTACK;
+            std::cout << "Computer end move" << std::endl;
+        }
     }
 
     void updateComputerDefend() {
@@ -1389,6 +1287,11 @@ private:
 
             std::cout << "Computer defends with card #" << cardIndex << std::endl;
         }
+        else {
+            gameLogic.computergettablecards();
+            gameLogic.dealCards(gameLogic.getDeck());
+            std::cout << "Computer end move" << std::endl;
+        }
 
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
@@ -1403,7 +1306,7 @@ private:
     void updatestartgame() {
         gameLogic.createFullDeck();
         gameLogic.shuffleDeck(gameLogic.getDeck());
-        gameLogic.dealCards(gameLogic.getDeck());
+        gameLogic.firstdealCards(gameLogic.getDeck());
         gameTable.render(gameLogic.getPlayerCards(), gameLogic.getComputerCards(), gameLogic.getTableCards(), gameLogic.getTrumpCard());
         currentState = GameState::PLAYER_TURN_ATTACK;
     }
