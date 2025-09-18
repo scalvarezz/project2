@@ -30,31 +30,30 @@ const float CARD_HEIGHT = 120.0f;
 class Card {
 public:
     enum Suit {
-        SPADES = 0,     // Спутники - наука - пики
-        HEARTS = 1,         // Ракеты - армия - черви
-        DIAMONDS = 2,       // Звёзды - пропаганда - бубны
-        CLUBS = 3,          // Астероиды - разрушение - трефы
+        SPADES = 0,     
+        HEARTS = 1,         
+        DIAMONDS = 2,       
+        CLUBS = 3,          
         BLACK = 4,
         RED = 5
     };
 
     enum Rank {
-        TWO = 0,        // Народные массы
-        TEN = 1,       // Пионер
-        JACK = 2,      // Октябрёнок
-        QUEEN = 3,     // Комсомолка
-        KING = 4,      // Вождь
-        ACE = 5,       // Революция
-        JOKER_RANK = 6 // Коммунизм
+        TWO = 0,       
+        TEN = 1,      
+        JACK = 2,    
+        QUEEN = 3,   
+        KING = 4,  
+        ACE = 5,      
+        JOKER_RANK = 6 
     };
 
     Suit suit;
     Rank rank;
-    bool isFaceUp; // то есть твоя карта или чужая (лицом к верху?)
+    bool isFaceUp; 
     glm::vec2 position;
-    int id; // Уникальный ID для идентификации
+    int id; 
 
-    // Конструктор по умолчанию
     Card() : suit(SPADES), rank(TWO), isFaceUp(true), position(0.0f, 0.0f), id(-1) {}
 
     Card(Suit s, Rank r, int cardId) : suit(s), rank(r), isFaceUp(true), id(cardId) {
@@ -86,7 +85,7 @@ public:
         }
 
 
-        return "C:/textures/" + rankStr + "_of_" + suitStr + ".png"; // джокеры пока названы так, что эта штука их не найдёт
+        return "C:/textures/" + rankStr + "_of_" + suitStr + ".png"; 
     }
 };
 
@@ -106,7 +105,6 @@ private:
 
 public:
     ~TextureManager() {
-        // Очистка всех текстур
         for (auto& pair : textures) {
             glDeleteTextures(1, &pair.second);
         }
@@ -114,16 +112,13 @@ public:
 
     unsigned int loadTexture(const std::string& filename) {
         stbi_set_flip_vertically_on_load(true);
-        // Проверяем, загружена ли уже текстура
         if (textures.find(filename) != textures.end()) {
             return textures[filename];
         }
 
-        // Генерируем ID для новой текстуры
         unsigned int textureID;
         glGenTextures(1, &textureID);
 
-        // Загружаем изображение
         int width, height, nrChannels;
         unsigned char* data = stbi_load(filename.c_str(), &width, &height, &nrChannels, 0);
 
@@ -138,17 +133,14 @@ public:
 
             glBindTexture(GL_TEXTURE_2D, textureID);
 
-            // Загружаем текстуру
             glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_2D);
 
-            // Параметры текстуры
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-            // Сохраняем текстуру в кэш
             textures[filename] = textureID;
 
             std::cout << "Successfully loaded texture: " << filename << std::endl;
@@ -156,11 +148,10 @@ public:
         else {
             std::cout << "Failed to load texture: " << filename << std::endl;
             std::cout << "STB error: " << stbi_failure_reason() << std::endl;
-            glDeleteTextures(1, &textureID); // Удаляем пустую текстуру
-            textureID = 0; // Возвращаем 0 как индикатор ошибки
+            glDeleteTextures(1, &textureID); 
+            textureID = 0; 
         }
 
-        // Освобождаем память
         stbi_image_free(data);
         return textureID;
     }
@@ -182,7 +173,7 @@ static unsigned int compileShader(unsigned int type, const char* source) {
     return id;
 }
 
-static unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource) { // эти 2 функции статиковые вроде уже должны быть рабочими
+static unsigned int createShaderProgram(const char* vertexSource, const char* fragmentSource) { 
     unsigned int vertexShader = compileShader(GL_VERTEX_SHADER, vertexSource);
     unsigned int fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentSource);
 
@@ -322,7 +313,6 @@ private:
 public:
     void renderCard(const Card& card, const glm::mat4& projection) {
         glm::mat4 model = glm::mat4(1.0f);
-        // Позиция в пикселях + смещение на половину размера для центрирования
         model = glm::translate(model, glm::vec3(
             card.position.x + CARD_WIDTH / 2,
             card.position.y + CARD_HEIGHT / 2,
@@ -365,7 +355,7 @@ public:
 };
 
 
-class AudioManager { // идентичный старому проекту, работает 
+class AudioManager { 
     ALCdevice* device;
     ALCcontext* context;
     ALuint buffer;
@@ -420,16 +410,14 @@ public:
 
 class GameLogic {
 private:
-    std::mt19937 rng; // Генератор случайных чисел
+    std::mt19937 rng;
     std::vector<Card> Deck;
     std::vector<Card> playerCards;
     std::vector<Card> computerCards;
-    std::vector<Card> tableCards; // на карты на столе надо будет потом поставить ограничение в условные 8-10 (?) штук
-    Card trumpCard; // козырь
+    std::vector<Card> tableCards; 
+    Card trumpCard; 
     std::mutex aiMutex;
 
-
-    // Простой расчет без многопоточности
     int calculateSimpleAIMove(bool isAttackTurn) {
         if (isAttackTurn) {
             return findBestAttackCard();
@@ -439,13 +427,11 @@ private:
         }
     }
 
-    // Многопоточный расчет
     int calculateMultiThreadAIMove(bool isAttackTurn, int numThreads) {
         std::vector<std::future<int>> futures;
         std::vector<int> results;
 
         if (isAttackTurn) {
-            // Для атаки: каждый поток ищет лучшую карту для атаки
             int cardsPerThread = std::max(1, (int)computerCards.size() / numThreads);
 
             for (int i = 0; i < numThreads; ++i) {
@@ -460,17 +446,15 @@ private:
             }
         }
         else {
-            // Для защиты: анализируем разные стратегии защиты
             futures.push_back(std::async(std::launch::async, [this]() {
-                return findMinimalDefenseCard(); // Минимальная карта для отбоя
+                return findMinimalDefenseCard();
                 }));
 
             futures.push_back(std::async(std::launch::async, [this]() {
-                return findStrategicDefenseCard(); // Стратегическая карта
+                return findStrategicDefenseCard();
                 }));
         }
 
-        // Собираем результаты
         for (auto& future : futures) {
             int result = future.get();
             if (result != -1) {
@@ -479,8 +463,6 @@ private:
         }
 
         if (results.empty()) return -1;
-
-        // Выбираем лучший результат на основе эвристики
         return selectBestMove(results, isAttackTurn);
     }
 
@@ -580,23 +562,14 @@ private:
 
     int evaluateAttackCard(const Card& card, int index) {
         int score = 0;
+        score -= getCardValue(card) * 2; 
 
-        // Предпочтение сброса ненужных карт
-        score -= getCardValue(card) * 2; // Чем слабее карта, тем лучше
-
-        // Бонус за сброс некозырных карт
         if (card.suit != trumpCard.suit) {
             score += 50;
         }
 
-        // Штраф за использование козыря в атаке
         if (card.suit == trumpCard.suit) {
             score -= 30;
-        }
-
-        // Учет возможности подкидывания
-        if (canCardBeUsedForAdding(card)) {
-            score += 20;
         }
 
         return score;
@@ -605,20 +578,16 @@ private:
     int evaluateDefenseCard(const Card& card, const Card& attackCard, int index) {
         int score = 0;
 
-        // Предпочтение минимальной карты для отбоя
         score -= getCardValue(card) * 3;
 
-        // Штраф за использование козыря если есть альтернатива
         if (card.suit == trumpCard.suit && hasNonTrumpAlternative(attackCard)) {
             score -= 40;
         }
 
-        // Бонус за использование козыря если это необходимо
         if (card.suit == trumpCard.suit && !hasNonTrumpAlternative(attackCard)) {
             score += 30;
         }
 
-        // Сохранение сильных карт
         if (getCardValue(card) > 10) {
             score -= 25;
         }
@@ -629,15 +598,12 @@ private:
     int evaluateStrategicDefense(const Card& card, const Card& attackCard, int index) {
         int score = 0;
 
-        // Стратегическое сохранение карт
-        score -= getCardValue(card); // Использовать weaker cards
+        score -= getCardValue(card);
 
-        // Избегание использования козыря без необходимости
         if (card.suit == trumpCard.suit && hasNonTrumpAlternative(attackCard)) {
             score -= 100;
         }
 
-        // Предпочтение карт той же масти что и атака
         if (card.suit == attackCard.suit) {
             score += 20;
         }
@@ -649,7 +615,6 @@ private:
         if (candidateIndices.empty()) return -1;
         if (candidateIndices.size() == 1) return candidateIndices[0];
 
-        // Для атаки выбираем карту с наименьшей ценностью
         if (isAttackTurn) {
             int bestIndex = candidateIndices[0];
             int minValue = getCardValue(computerCards[bestIndex]);
@@ -664,7 +629,6 @@ private:
             return bestIndex;
         }
 
-        // Для защиты выбираем карту с оптимальным балансом
         int bestIndex = candidateIndices[0];
         int bestScore = evaluateDefenseCard(computerCards[bestIndex], tableCards.back(), bestIndex);
 
@@ -689,53 +653,35 @@ private:
         return false;
     }
 
-    bool canCardBeUsedForAdding(const Card& card) {
-        // Проверяем, можно ли этой картой подкинуть на существующие карты на столе
-        for (const auto& tableCard : tableCards) {
-            if (tableCard.rank == card.rank) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
 public:
     GameLogic() : rng(std::random_device{}()), Deck(), playerCards(),
         computerCards(), tableCards(), trumpCard(), aiMutex() {
     }
 
-    // Создание полной колоды карт
     std::vector<Card> createFullDeck() {
         int id = 0;
 
-        // Создаем стандартные карты (без джокеров)
         for (int suit = 0; suit < 4; ++suit) {
-            for (int rank = 0; rank < 6; ++rank) { // TWO до ACE
+            for (int rank = 0; rank < 6; ++rank) { 
                 Deck.emplace_back(static_cast<Card::Suit>(suit),
                     static_cast<Card::Rank>(rank), id++);
             }
         }
 
-        // Добавляем джокеров
         Deck.emplace_back(Card::BLACK, Card::JOKER_RANK, id++);
         Deck.emplace_back(Card::RED, Card::JOKER_RANK, id++);
 
         return Deck;
     }
 
-    // Перемешивание колоды
     void shuffleDeck(std::vector<Card>& Deck) {
         std::shuffle(Deck.begin(), Deck.end(), rng);
     }
 
-    // Раздача карт
     void firstdealCards(std::vector<Card>& Deck) {
-
         playerCards.clear();
         computerCards.clear();
 
-        // Раздаем по 6 карт каждому
         for (int i = 0; i < 6; ++i) {
             if (!Deck.empty()) {
                 playerCards.push_back(Deck.back());
@@ -747,7 +693,6 @@ public:
             }
         }
 
-        // Определяем козырь
         if (!Deck.empty()) {
             while (Deck.back().rank == 6)
                 shuffleDeck(Deck);
@@ -758,7 +703,6 @@ public:
     }
 
     void dealCards(std::vector<Card>& Deck) {
-
         while (playerCards.size() < 6 && computerCards.size() < 6 && !Deck.empty()) {
             playerCards.push_back(Deck.back());
             Deck.pop_back();
@@ -777,44 +721,33 @@ public:
         }
     }
 
-    // Логика битвы карт
-
-    // Проверка, можно ли побить карту attackCard картой defendCard
     bool canBeatCard(const Card& attackCard, const Card& defendCard, const Card& trumpCard) {
-        // Джокер бьет все карты
         if (defendCard.rank == Card::JOKER_RANK) {
             return true;
         }
 
-        // Джокера можно побить только другим джокером
         if (attackCard.rank == Card::JOKER_RANK) {
             return defendCard.rank == Card::JOKER_RANK;
         }
 
-        // Если козырь
         if (defendCard.suit == trumpCard.suit) {
-            // Козырь бьет все некозырные карты
             if (attackCard.suit != trumpCard.suit) {
                 return true;
             }
-            // Козырь бьет козырь только если старше
             else {
                 return getCardValue(defendCard) > getCardValue(attackCard);
             }
         }
-        // Если обе карты некозырные
+
         else if (attackCard.suit == defendCard.suit) {
-            // Одинаковая масть - сравниваем достоинства
             return getCardValue(defendCard) > getCardValue(attackCard);
         }
 
-        // Разные масти, защита не козырь - нельзя побить
         return false;
     }
 
-    // Получение числового значения карты для сравнения
     int getCardValue(const Card& card) {
-        if (card.rank == Card::JOKER_RANK) return 100; // Джокер самый старший
+        if (card.rank == Card::JOKER_RANK) return 100;
 
         switch (card.rank) {
         case Card::TWO: return 2;
@@ -827,19 +760,14 @@ public:
         }
     }
 
-    // Управление ходом игры
-
-    // Игрок атакует
     bool playerAttack(int cardIndex) {
-
         if (cardIndex < 0 || cardIndex >= static_cast<int>(playerCards.size())) {
             return false;
         }
 
-        // Проверяем, можно ли атаковать этой картой
         if (tableCards.empty() || canAttackWithCard(playerCards[cardIndex])) {
             Card attackingCard = playerCards[cardIndex];
-            attackingCard.id = cardIndex; // Сохраняем индекс для последующего удаления
+            attackingCard.id = cardIndex;
 
             tableCards.push_back(attackingCard);
             playerCards.erase(playerCards.begin() + cardIndex);
@@ -850,12 +778,9 @@ public:
         return false;
     }
 
-    // Проверка, можно ли атаковать выбранной картой
     bool canAttackWithCard(const Card& card) {
+        if (tableCards.empty()) return true; 
 
-        if (tableCards.empty()) return true; // Первая карта всегда может атаковать
-
-        // Проверяем, есть ли на столе карта с таким же рангом
         for (const auto& tableCard : tableCards) {
             if (tableCard.rank == card.rank) {
                 return true;
@@ -865,7 +790,6 @@ public:
         return false;
     }
 
-    // Игрок защищается
     bool playerDefend(int attackCardIndex, int defendCardIndex) {
 
         if (attackCardIndex < 0 || attackCardIndex >= static_cast<int>(tableCards.size()) ||
@@ -877,8 +801,7 @@ public:
         Card& defendCard = playerCards[defendCardIndex];
 
         if (canBeatCard(attackCard, defendCard, trumpCard)) {
-            // Помечаем, что карта побита
-            attackCard.isFaceUp = false; // Временно используем для пометки
+            attackCard.isFaceUp = false;
             tableCards.push_back(defendCard);
             playerCards.erase(playerCards.begin() + defendCardIndex);
 
@@ -888,39 +811,35 @@ public:
         return false;
     }
 
-
-    // Проверка окончания игры
     bool isGameOver() {
         return playerCards.empty() || computerCards.empty();
     }
 
-    // Определение победителя
     std::string getWinner() {
 
         if (playerCards.empty() && computerCards.empty()) {
-            return "Ничья!";
+            return "draw!";
         }
         else if (playerCards.empty()) {
-            return "Игрок победил!";
+            return "Player wins!";
         }
         else if (computerCards.empty()) {
-            return "Компьютер победил!";
+            return "Computer wins!";
         }
 
-        return "Игра продолжается";
+        return "Continue game";
     }
 
     int calculateAIMove(bool isAttackTurn, int numThreads = 2) {
         if (computerCards.empty()) return -1;
 
-        // Если один поток или мало карт - используем простой расчет
         if (numThreads <= 1 || computerCards.size() <= 2) {
             return calculateSimpleAIMove(isAttackTurn);
         }
 
         return calculateMultiThreadAIMove(isAttackTurn, numThreads);
     }
-    
+
     void computergettablecards() {
         while (tableCards.size() > 0) {
             computerCards.push_back(tableCards.back());
@@ -959,15 +878,11 @@ class MouseManager {
 private:
     int selectedCardIndex = -1;
 public:
-    // Конструктор, принимающий ссылку на GameTable
     MouseManager() : selectedCardIndex(-1) {}
 
-    // Проверка, попал ли клик по карте
     int getCardAtPosition(double xpos, double ypos, std::vector<Card> playercards) {
-        // ypos от верхнего левого угла -> в нижний левый
         ypos = WINDOW_HEIGHT - ypos;
 
-        // Проверяем карты игрока (в порядке справа налево, чтобы верхние карты проверялись первыми)
         for (int i = playercards.size() - 1; i >= 0; --i) {
             if (i >= 6) continue;
 
@@ -977,21 +892,18 @@ public:
                 xpos <= card.position.x + CARD_WIDTH &&
                 ypos >= card.position.y &&
                 ypos <= card.position.y + CARD_HEIGHT) {
-                return i; // Возвращаем индекс найденной карты
+                return i;
             }
         }
-        
-        
-        
-            if (xpos >= 0.0f && xpos <= 100.0f &&
-               ypos >= 0.0f && ypos <= 100.0f) {
-               return -2;
-            }
-        
-        
-            if (WINDOW_WIDTH - xpos >= 0.0f && WINDOW_WIDTH - xpos <= 100.0f && WINDOW_HEIGHT - ypos >= 0.0f && WINDOW_HEIGHT - ypos <= 100.0f) {
-                return -3;
-            }
+
+        if (xpos >= 0.0f && xpos <= 100.0f &&
+            ypos >= 0.0f && ypos <= 100.0f) {
+            return -2;
+        }
+
+        if (WINDOW_WIDTH - xpos >= 0.0f && WINDOW_WIDTH - xpos <= 100.0f && WINDOW_HEIGHT - ypos >= 0.0f && WINDOW_HEIGHT - ypos <= 100.0f) {
+            return -3;
+        }
 
         return -1;
     }
@@ -1022,10 +934,9 @@ public:
             std::cout << "Chosen card: " << playercards[cardIndex].getTextureName() << std::endl;
         }
     }
-    // Метод для получения выбранной карты
+
     int getSelectedCardIndex() const { return selectedCardIndex; }
 
-    // Метод для сброса выбора
     void clearSelection() { selectedCardIndex = -1; }
 };
 
@@ -1036,7 +947,6 @@ private:
 
 public:
     GameTable() {
-        // Создаем матрицу проекции один раз при инициализации
         projectionMatrix = glm::ortho(
             0.0f, static_cast<float>(WINDOW_WIDTH),
             0.0f, static_cast<float>(WINDOW_HEIGHT),
@@ -1050,8 +960,6 @@ public:
 
     void render(std::vector<Card>& playercards, std::vector<Card>& computercards, std::vector<Card>& tablecards, Card& trump) {
         float startX = (WINDOW_WIDTH - playercards.size() * CARD_WIDTH) / 2.0f;
-
-        // Карты игрока (низ экрана)
         float playerY = 50.0f;
         for (int i = 0; i < playercards.size(); ++i) {
             playercards[i].position = glm::vec2(
@@ -1062,7 +970,6 @@ public:
         }
 
         startX = (WINDOW_WIDTH - computercards.size() * CARD_WIDTH) / 2.0f;
-        // Карты компьютера (верх экрана)
         float computerY = WINDOW_HEIGHT - 50.0f - CARD_HEIGHT;
         for (int i = 0; i < computercards.size(); ++i) {
             computercards[i].position = glm::vec2(
@@ -1072,7 +979,6 @@ public:
             computercards[i].isFaceUp = false;
         }
 
-        // Карты на столе (центр)
         float tableStartX = (WINDOW_WIDTH - 4 * CARD_WIDTH) / 2.0f;
         float tableY = WINDOW_HEIGHT / 2.0f - CARD_HEIGHT / 2.0f;
 
@@ -1086,7 +992,6 @@ public:
             tablecards[i].isFaceUp = true;
         }
 
-        // Козырь
         if (trump.rank != Card::JOKER_RANK) {
             trump.position = glm::vec2(
                 WINDOW_WIDTH - CARD_WIDTH - 20,
@@ -1095,19 +1000,15 @@ public:
             trump.isFaceUp = true;
         }
 
-        // Очищаем экран
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // Рендерим фон
         renderer.renderBackground("C:/textures/table.jpg");
 
-        // Рендерим все карты с общей матрицей проекции
         renderer.renderCards(computercards, projectionMatrix);
         renderer.renderCards(tablecards, projectionMatrix);
         renderer.renderCards(playercards, projectionMatrix);
 
-        // Рендерим козырь отдельно, если нужно
         if (trump.rank != Card::JOKER_RANK) {
             renderer.renderCard(trump, projectionMatrix);
         }
@@ -1149,10 +1050,8 @@ public:
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-        // Инициализируем игровой стол
         gameTable.init();
 
-        // Настройка обработки мыши
         glfwSetWindowUserPointer(window, this);
         glfwSetMouseButtonCallback(window, [](GLFWwindow* w, int button, int action, int mods) {
             if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
@@ -1177,7 +1076,6 @@ public:
 
 private:
     void update() {
-        // Обновление игрового состояния в зависимости от currentState
         switch (currentState) {
         case GameState::START_GAME:
             updatestartgame();
@@ -1207,12 +1105,6 @@ private:
             break;
         case GameState::PLAYER_TURN_DEFEND:
             mouseManager.onMouseClick(xpos, ypos, gameLogic.getPlayerCards());
-            break;
-        case GameState::COMPUTER_TURN_ATTACK:
-            break;
-        case GameState::COMPUTER_TURN_DEFEND:
-            break;
-        case GameState::GAME_OVER:
             break;
         }
     }
@@ -1258,7 +1150,7 @@ private:
     }
 
     void updateComputerAttack() {
-        int cardIndex = gameLogic.calculateAIMove(true, 2); // 2 потока для атаки
+        int cardIndex = gameLogic.calculateAIMove(true, 4);
         if (cardIndex != -1) {
             Card attackingCard = gameLogic.getComputerCards()[cardIndex];
             gameLogic.getTableCards().push_back(attackingCard);
@@ -1275,7 +1167,7 @@ private:
     }
 
     void updateComputerDefend() {
-        int cardIndex = gameLogic.calculateAIMove(false, 2); // 2 потока для защиты
+        int cardIndex = gameLogic.calculateAIMove(false, 4); 
 
         if (cardIndex != -1) {
             Card& attackCard = gameLogic.getTableCards().back();
@@ -1297,7 +1189,6 @@ private:
     }
 
     void updateGameOver() {
-        // Логика конца игры
         if (gameLogic.isGameOver()) {
             std::cout << gameLogic.getWinner() << std::endl;
         }
